@@ -73,16 +73,24 @@ export class MiniatureFactory {
     rimMesh.position.y  = baseH + 0.01;
     group.add(rimMesh);
 
+    // Faction-colored up-light: illuminates the miniature artwork in faction color
+    // so it pops against the grey/neutral map background
+    const upLight = new THREE.PointLight(hexColor, isGOO ? 2.2 : 1.6, isGOO ? 9 : 6);
+    upLight.position.set(0, baseH + 0.5, 0.5);
+    group.add(upLight);
+
     // ── Artwork billboard ─────────────────────────────────────
     const imgUrl = UNIT_IMAGES[unitType] ?? UNIT_IMAGES['cultist'];
     const tex    = getTex(imgUrl);
 
-    const billMat = new THREE.MeshBasicMaterial({
-      map:        tex,
-      transparent: true,
-      alphaTest:   0.08,        // discard near-transparent (feathered edge) fragments
-      depthWrite:  false,
-      side:        THREE.DoubleSide,
+    const billMat = new THREE.MeshStandardMaterial({
+      map:               tex,
+      transparent:       true,
+      alphaTest:         0.08,
+      depthWrite:        false,
+      roughness:         0.6,
+      metalness:         0.0,
+      side:              THREE.DoubleSide,
     });
 
     const billboard = new THREE.Mesh(
