@@ -1,5 +1,6 @@
 import { GameState } from './game/game-state.js';
 import { MapRenderer } from './game/map-renderer.js';
+import { MapRenderer3D } from './game/map-renderer-3d.js';
 import { CombatEngine } from './game/combat.js';
 import { DiceRenderer } from './game/dice-renderer.js';
 import { UIController } from './ui/ui-controller.js';
@@ -23,6 +24,7 @@ class CthulhuWarsApp {
     this.combatEngine = null;
     this.diceRenderer = null;
     this.uiController = null;
+    this.is3DMode = false;
   }
 
   async init() {
@@ -37,8 +39,9 @@ class CthulhuWarsApp {
     $('#setup-screen').style.display = 'none';
     $('#game-ui').style.display = '';
     
-    // Initialize map
-    this.mapRenderer = new MapRenderer($('#map-container'), this.gameState);
+    // Initialize map (default 2D)
+    const mapContainer = $('#map-container');
+    this.mapRenderer = new MapRenderer(mapContainer, this.gameState);
     this.mapRenderer.init();
     
     // Initialize combat
@@ -49,6 +52,33 @@ class CthulhuWarsApp {
     this.uiController = new UIController(this.gameState, this.mapRenderer);
     this.uiController.init();
     this.uiController.updateUI();
+    
+    // Wire 3D / 2D Map Mode Toggle
+    const mapModeBtn = $('#map-mode-btn');
+    if (mapModeBtn) {
+      mapModeBtn.addEventListener('click', () => {
+        this.is3DMode = !this.is3DMode;
+        
+        // Preserve active callbacks
+        const activeCallback = this.mapRenderer.clickCallback;
+        this.mapRenderer.destroy();
+        
+        if (this.is3DMode) {
+          mapModeBtn.textContent = '🗺️ 2D Tactical';
+          this.mapRenderer = new MapRenderer3D(mapContainer, this.gameState);
+        } else {
+          mapModeBtn.textContent = '🎥 3D Tabletop';
+          this.mapRenderer = new MapRenderer(mapContainer, this.gameState);
+        }
+        
+        this.mapRenderer.init();
+        if (activeCallback) {
+          this.mapRenderer.onRegionClick(activeCallback);
+        }
+        this.uiController.mapRenderer = this.mapRenderer;
+        this.uiController.updateUI();
+      });
+    }
     
     // Show wallet in header
     const headerWallet = $('#header-wallet');
