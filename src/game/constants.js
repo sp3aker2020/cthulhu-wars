@@ -338,22 +338,22 @@ export const UNIT_ICONS = {
 };
 
 export const UNIT_IMAGES = {
-  cultist: '/assets/units/cultist_art.jpg',
-  great_cthulhu: '/assets/units/cthulhu_art.jpg',
-  nyarlathotep: '/assets/units/nyarlathotep_art.jpg',
-  hastur: '/assets/units/hastur_art.jpg',
-  king_in_yellow: '/assets/units/hastur_art.jpg',
-  shub_niggurath: '/assets/units/shub_art.jpg',
-  deep_one: '/assets/units/cultist_art.jpg',
-  starspawn: '/assets/units/cultist_art.jpg',
-  shoggoth: '/assets/units/cultist_art.jpg',
-  flying_polyp: '/assets/units/nyarlathotep_art.jpg',
-  hunting_horror: '/assets/units/nyarlathotep_art.jpg',
-  nightgaunt: '/assets/units/nyarlathotep_art.jpg',
-  dark_young: '/assets/units/shub_art.jpg',
-  ghoul: '/assets/units/shub_art.jpg',
-  byakhee: '/assets/units/hastur_art.jpg',
-  king_in_yellow_avatar: '/assets/units/hastur_art.jpg'
+  cultist: '/assets/units/cultist_art.png',
+  great_cthulhu: '/assets/units/cthulhu_art.png',
+  nyarlathotep: '/assets/units/nyarlathotep_art.png',
+  hastur: '/assets/units/hastur_art.png',
+  king_in_yellow: '/assets/units/hastur_art.png',
+  shub_niggurath: '/assets/units/shub_art.png',
+  deep_one: '/assets/units/cultist_art.png',
+  starspawn: '/assets/units/cultist_art.png',
+  shoggoth: '/assets/units/cultist_art.png',
+  flying_polyp: '/assets/units/nyarlathotep_art.png',
+  hunting_horror: '/assets/units/nyarlathotep_art.png',
+  nightgaunt: '/assets/units/nyarlathotep_art.png',
+  dark_young: '/assets/units/shub_art.png',
+  ghoul: '/assets/units/shub_art.png',
+  byakhee: '/assets/units/hastur_art.png',
+  king_in_yellow_avatar: '/assets/units/hastur_art.png'
 };
 
 export const PHASE_NAMES = {
