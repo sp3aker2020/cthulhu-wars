@@ -66,7 +66,7 @@ export class MapRenderer3D {
     this.textures.elderSign = textureLoader.load('/assets/tokens/elder_sign.jpg');
 
     Object.entries(UNIT_IMAGES).forEach(([key, url]) => {
-      this.textures[key] = textureLoader.load(url);
+      this.textures[key] = this._createCleanTexture(url);
     });
 
     // 3D Table Surface
@@ -276,6 +276,43 @@ export class MapRenderer3D {
     });
   }
 
+  _createCleanTexture(url) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const texture = new THREE.CanvasTexture(canvas);
+
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+
+      // Dark background removal / chroma key filtering
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const maxVal = Math.max(r, g, b);
+
+        if (maxVal < 45) {
+          data[i + 3] = 0; // Make dark background 100% transparent
+        } else if (maxVal < 70) {
+          // Feather edges smoothly
+          data[i + 3] = Math.floor(((maxVal - 45) / 25) * 255);
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      texture.needsUpdate = true;
+    };
+    img.src = url;
+    return texture;
+  }
+
   _updateUnits() {
     // Clear old units
     while (this.unitGroup.children.length > 0) {
@@ -306,35 +343,51 @@ export class MapRenderer3D {
           const offsetZ = Math.floor(offsetIndex / 3) * 1.4;
           const pos = { x: center.x + offsetX, z: center.z + offsetZ };
 
-          // 3D Round Pedestal Base
           const isGOO = uType === 'great_cthulhu' || uType === 'nyarlathotep' || uType === 'hastur' || uType === 'shub_niggurath';
-          const baseRadius = isGOO ? 1.0 : 0.6;
-          const baseHeight = isGOO ? 0.3 : 0.2;
-          const figureHeight = isGOO ? 3.2 : 2.0;
+          const baseRadius = isGOO ? 1.0 : 0.65;
+          const baseHeight = isGOO ? 0.35 : 0.22;
+          const figureHeight = isGOO ? 3.4 : 2.2;
+          const figureWidth = isGOO ? 2.6 : 1.6;
 
-          const baseGeo = new THREE.CylinderGeometry(baseRadius, baseRadius * 1.1, baseHeight, 24);
+          // 3D Round Pedestal Base
+          const baseGeo = new THREE.CylinderGeometry(baseRadius, baseRadius * 1.15, baseHeight, 32);
           const baseMat = new THREE.MeshStandardMaterial({
             color: factionColor,
-            roughness: 0.3,
-            metalness: 0.5
+            roughness: 0.25,
+            metalness: 0.65,
+            emissive: factionColor,
+            emissiveIntensity: 0.15
           });
           const baseMesh = new THREE.Mesh(baseGeo, baseMat);
           baseMesh.position.set(pos.x, baseHeight / 2, pos.z);
           baseMesh.castShadow = true;
           this.unitGroup.add(baseMesh);
 
-          // 3D Standing Miniature Figure Sprite / Plane
+          // 3D Token Medallion Face on Top of Base
           const textureKey = uType in this.textures ? uType : 'cultist';
-          const figureGeo = new THREE.PlaneGeometry(baseRadius * 2, figureHeight);
+          const faceGeo = new THREE.CircleGeometry(baseRadius * 0.9, 32);
+          const faceMat = new THREE.MeshStandardMaterial({
+            map: this.textures[textureKey],
+            roughness: 0.3,
+            side: THREE.DoubleSide
+          });
+          const faceMesh = new THREE.Mesh(faceGeo, faceMat);
+          faceMesh.rotation.x = -Math.PI / 2;
+          faceMesh.position.set(pos.x, baseHeight + 0.01, pos.z);
+          this.unitGroup.add(faceMesh);
+
+          // Standing Cutout Miniature Figure (Transparent Cutout)
+          const figureGeo = new THREE.PlaneGeometry(figureWidth, figureHeight);
           const figureMat = new THREE.MeshStandardMaterial({
             map: this.textures[textureKey],
             transparent: true,
-            alphaTest: 0.2,
+            alphaTest: 0.05,
+            depthWrite: false,
             side: THREE.DoubleSide
           });
           const figureMesh = new THREE.Mesh(figureGeo, figureMat);
           figureMesh.position.set(pos.x, baseHeight + figureHeight / 2, pos.z);
-          figureMesh.rotation.y = this.camera ? this.camera.rotation.y : 0; // Face camera angle
+          figureMesh.rotation.y = this.camera ? Math.atan2(this.camera.position.x - pos.x, this.camera.position.z - pos.z) : 0;
           figureMesh.castShadow = true;
           this.unitGroup.add(figureMesh);
 
