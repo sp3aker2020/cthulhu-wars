@@ -214,6 +214,11 @@ export class MapRenderer3D {
       }
     });
 
+    // Keep all miniature artwork billboards facing the camera
+    if (this.unitGroup && this.camera) {
+      MiniatureFactory.faceCameraAll(this.unitGroup, this.camera);
+    }
+
     if (this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }
