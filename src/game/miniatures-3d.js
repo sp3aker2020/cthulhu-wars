@@ -1,37 +1,17 @@
 import * as THREE from 'three';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { FACTIONS } from './constants.js';
+import { FACTIONS, UNIT_IMAGES } from './constants.js';
 
-const MODEL_PATHS = {
-  great_cthulhu: '/assets/models/cthulhu.obj',
-  nyarlathotep: '/assets/models/nyarlathotep.obj',
-  hastur: '/assets/models/hastur.obj',
-  king_in_yellow: '/assets/models/hastur.obj',
-  shub_niggurath: '/assets/models/shub.obj',
-  cultist: '/assets/models/cultist.obj',
-  deep_one: '/assets/models/monster.obj',
-  starspawn: '/assets/models/monster.obj',
-  shoggoth: '/assets/models/monster.obj',
-  flying_polyp: '/assets/models/monster.obj',
-  hunting_horror: '/assets/models/monster.obj',
-  nightgaunt: '/assets/models/monster.obj',
-  dark_young: '/assets/models/shub.obj',
-  ghoul: '/assets/models/monster.obj',
-  byakhee: '/assets/models/monster.obj',
-  king_in_yellow_avatar: '/assets/models/hastur.obj'
-};
+const textureLoader = new THREE.TextureLoader();
+const textureCache = {};
 
-const loader = new OBJLoader();
-const modelCache = {};
-
-// Preload OBJ models
-Object.entries(MODEL_PATHS).forEach(([key, path]) => {
-  if (!modelCache[path]) {
-    loader.load(path, (obj) => {
-      modelCache[path] = obj;
-    });
+function getTexture(url) {
+  if (!textureCache[url]) {
+    const tex = textureLoader.load(url);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    textureCache[url] = tex;
   }
-});
+  return textureCache[url];
+}
 
 export class MiniatureFactory {
   constructor() {
@@ -49,12 +29,11 @@ export class MiniatureFactory {
     const material = new THREE.MeshPhysicalMaterial({
       color: hexColor,
       roughness: 0.22,
-      metalness: 0.15,
-      clearcoat: 0.5,
+      metalness: 0.35,
+      clearcoat: 0.6,
       clearcoatRoughness: 0.1,
-      reflectivity: 0.7,
       emissive: hexColor,
-      emissiveIntensity: 0.15,
+      emissiveIntensity: 0.25,
       shadowSide: THREE.DoubleSide
     });
 
@@ -64,43 +43,97 @@ export class MiniatureFactory {
 
   createMiniature(unitType, factionId) {
     const group = new THREE.Group();
-    const mat = this.getPlasticMaterial(factionId);
-    const modelPath = MODEL_PATHS[unitType] || MODEL_PATHS.cultist;
+    const faction = FACTIONS[factionId];
+    const hexColor = faction ? parseInt(faction.color.replace('#', '0x'), 16) : 0x888888;
+    const baseMat = this.getPlasticMaterial(factionId);
 
     const isGOO = ['great_cthulhu', 'nyarlathotep', 'hastur', 'king_in_yellow', 'shub_niggurath'].includes(unitType);
 
-    if (modelCache[modelPath]) {
-      const clonedObj = modelCache[modelPath].clone(true);
-      clonedObj.traverse((child) => {
-        if (child.isMesh) {
-          child.material = mat;
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-      clonedObj.rotation.x = -Math.PI / 2;
-      group.add(clonedObj);
-    } else {
-      loader.load(modelPath, (obj) => {
-        modelCache[modelPath] = obj;
-        const loadedObj = obj.clone(true);
-        loadedObj.traverse((child) => {
-          if (child.isMesh) {
-            child.material = mat;
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-        loadedObj.rotation.x = -Math.PI / 2;
-        group.add(loadedObj);
-      });
-    }
+    const baseRadius = isGOO ? 1.3 : 0.8;
+    const baseHeight = isGOO ? 0.38 : 0.25;
+    const billHeight = isGOO ? 5.4 : 3.4;
+    const billWidth = billHeight * 0.82;
 
+    // 1. Heavy Molded 3D Faction Pedestal Base
+    const baseGeo = new THREE.CylinderGeometry(baseRadius, baseRadius * 1.15, baseHeight, 32);
+    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    baseMesh.position.y = baseHeight / 2;
+    baseMesh.castShadow = true;
+    baseMesh.receiveShadow = true;
+    group.add(baseMesh);
+
+    // Glowing Metallic Faction Rim Ring
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: 0xffd700, // Gold rim frame
+      roughness: 0.1,
+      metalness: 0.95,
+      emissive: hexColor,
+      emissiveIntensity: 0.3
+    });
+    const rimMesh = new THREE.Mesh(
+      new THREE.TorusGeometry(baseRadius * 1.05, 0.07, 8, 32),
+      rimMat
+    );
+    rimMesh.rotation.x = Math.PI / 2;
+    rimMesh.position.y = baseHeight + 0.01;
+    group.add(rimMesh);
+
+    // Faction-colored Point Light to make painted miniature pop
+    const pLight = new THREE.PointLight(hexColor, isGOO ? 2.4 : 1.6, isGOO ? 10 : 6);
+    pLight.position.set(0, baseHeight + 0.6, 0.6);
+    group.add(pLight);
+
+    // 2. Standing 3D Metallic Plaque Standee
+    const plaqueGroup = new THREE.Group();
+    plaqueGroup.position.y = baseHeight + billHeight / 2;
+
+    // Outer Metallic Frame Bezel
+    const frameGeo = new THREE.BoxGeometry(billWidth + 0.15, billHeight + 0.15, 0.08);
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x222222,
+      roughness: 0.3,
+      metalness: 0.8
+    });
+    const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+    plaqueGroup.add(frameMesh);
+
+    // High-Res Painted Miniature Artwork Face
+    const imgUrl = UNIT_IMAGES[unitType] || UNIT_IMAGES.cultist;
+    const texture = getTexture(imgUrl);
+
+    const faceMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      alphaTest: 0.05,
+      side: THREE.DoubleSide
+    });
+
+    const faceGeo = new THREE.PlaneGeometry(billWidth, billHeight);
+    const faceMesh = new THREE.Mesh(faceGeo, faceMat);
+    faceMesh.position.z = 0.05;
+    plaqueGroup.add(faceMesh);
+
+    // Back Face Duplicate for 360° visibility
+    const backMesh = new THREE.Mesh(faceGeo, faceMat);
+    backMesh.rotation.y = Math.PI;
+    backMesh.position.z = -0.05;
+    plaqueGroup.add(backMesh);
+
+    group.add(plaqueGroup);
+    group.userData = { isMiniature: true, billboard: plaqueGroup };
     return group;
   }
 
   static faceCameraAll(unitGroup, camera) {
-    // 3D OBJ models do NOT face camera because they are 360° 3D meshes!
+    if (!unitGroup || !camera) return;
+    unitGroup.children.forEach(mini => {
+      if (mini.userData && mini.userData.billboard) {
+        mini.userData.billboard.rotation.y = Math.atan2(
+          camera.position.x - mini.position.x,
+          camera.position.z - mini.position.z
+        );
+      }
+    });
   }
 
   create3DGate(colorHex) {
