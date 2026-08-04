@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { MAP_REGIONS, FACTIONS, UNIT_IMAGES } from './constants.js';
+import { MiniatureFactory } from './miniatures-3d.js';
 
 export class MapRenderer3D {
   constructor(containerElement, gameState) {
     this.container = containerElement;
     this.gameState = gameState;
+    this.miniFactory = new MiniatureFactory();
     this.scene = null;
     this.camera = null;
     this.renderer = null;
@@ -48,7 +50,7 @@ export class MapRenderer3D {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
     this.scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+    const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.3);
     dirLight.position.set(15, 40, 20);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
@@ -241,37 +243,17 @@ export class MapRenderer3D {
       if (rState && rState.gate) {
         const pos = this._map2DTo3D(config.x * 10 - 20, config.y * 6 - 15);
 
-        // Gate Stone Pedestal Ring
-        const ringGeo = new THREE.TorusGeometry(0.8, 0.18, 12, 24);
-        let color = 0x888888;
+        let colorHex = 0x888888;
         if (typeof rState.gate.owner === 'number') {
           const player = this.gameState.getPlayer(rState.gate.owner);
           if (player && FACTIONS[player.factionId]) {
-            color = parseInt(FACTIONS[player.factionId].color.replace('#', '0x'), 16);
+            colorHex = parseInt(FACTIONS[player.factionId].color.replace('#', '0x'), 16);
           }
         }
-        const ringMat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.6 });
-        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-        ringMesh.rotation.x = Math.PI / 2;
-        ringMesh.position.set(pos.x, 0.15, pos.z);
-        this.gateGroup.add(ringMesh);
 
-        // Glowing Rune Eye Center
-        const eyeGeo = new THREE.CircleGeometry(0.6, 24);
-        const eyeMat = new THREE.MeshBasicMaterial({
-          map: this.textures.gate,
-          transparent: true,
-          side: THREE.DoubleSide
-        });
-        const eyeMesh = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeMesh.rotation.x = -Math.PI / 2;
-        eyeMesh.position.set(pos.x, 0.18, pos.z);
-        this.gateGroup.add(eyeMesh);
-
-        // Light point
-        const light = new THREE.PointLight(color, 0.8, 4);
-        light.position.set(pos.x, 0.8, pos.z);
-        this.gateGroup.add(light);
+        const gate3D = this.miniFactory.create3DGate(colorHex);
+        gate3D.position.set(pos.x, 0, pos.z);
+        this.gateGroup.add(gate3D);
       }
     });
   }
@@ -295,69 +277,19 @@ export class MapRenderer3D {
       Object.entries(rState.units).forEach(([playerIndexStr, units]) => {
         const pIdx = parseInt(playerIndexStr, 10);
         const player = this.gameState.getPlayer(pIdx);
-        const faction = player ? FACTIONS[player.factionId] : null;
-        const factionColor = faction ? parseInt(faction.color.replace('#', '0x'), 16) : 0xffffff;
+        if (!player) return;
 
         const counts = {};
         units.forEach(u => { counts[u.unitType] = (counts[u.unitType] || 0) + 1; });
 
         Object.entries(counts).forEach(([uType, count]) => {
-          const offsetX = (offsetIndex % 3 - 1) * 1.5;
-          const offsetZ = Math.floor(offsetIndex / 3) * 1.5;
+          const offsetX = (offsetIndex % 3 - 1) * 1.6;
+          const offsetZ = Math.floor(offsetIndex / 3) * 1.6;
           const pos = { x: center.x + offsetX, z: center.z + offsetZ };
 
-          const isGOO = uType === 'great_cthulhu' || uType === 'nyarlathotep' || uType === 'hastur' || uType === 'shub_niggurath';
-          const radius = isGOO ? 1.25 : 0.8;
-          const thickness = isGOO ? 0.35 : 0.22;
-
-          // 1. 3D Pedestal Base
-          const baseGeo = new THREE.CylinderGeometry(radius, radius * 1.15, thickness, 32);
-          const baseMat = new THREE.MeshStandardMaterial({
-            color: factionColor,
-            roughness: 0.2,
-            metalness: 0.8,
-            emissive: factionColor,
-            emissiveIntensity: 0.2
-          });
-          const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-          baseMesh.position.set(pos.x, thickness / 2, pos.z);
-          baseMesh.castShadow = true;
-          this.unitGroup.add(baseMesh);
-
-          // 2. Standing 3D Circular Token Medallion
-          const tokenGroup = new THREE.Group();
-          tokenGroup.position.set(pos.x, thickness + radius, pos.z);
-
-          // Outer Metallic Bezel Ring
-          const bezelGeo = new THREE.TorusGeometry(radius, 0.12, 16, 32);
-          const bezelMat = new THREE.MeshStandardMaterial({
-            color: factionColor,
-            roughness: 0.15,
-            metalness: 0.9,
-            emissive: factionColor,
-            emissiveIntensity: 0.3
-          });
-          const bezelMesh = new THREE.Mesh(bezelGeo, bezelMat);
-          tokenGroup.add(bezelMesh);
-
-          // Inner Circular Artwork Face (Front & Back)
-          const textureKey = uType in this.textures ? uType : 'cultist';
-          const faceGeo = new THREE.CircleGeometry(radius * 0.98, 32);
-          const faceMat = new THREE.MeshStandardMaterial({
-            map: this.textures[textureKey],
-            roughness: 0.3,
-            metalness: 0.1,
-            side: THREE.DoubleSide
-          });
-          const faceMesh = new THREE.Mesh(faceGeo, faceMat);
-          tokenGroup.add(faceMesh);
-
-          // Orient token towards camera angle
-          if (this.camera) {
-            tokenGroup.rotation.y = Math.atan2(this.camera.position.x - pos.x, this.camera.position.z - pos.z);
-          }
-
-          this.unitGroup.add(tokenGroup);
+          const mini3D = this.miniFactory.createMiniature(uType, player.factionId);
+          mini3D.position.set(pos.x, 0, pos.z);
+          this.unitGroup.add(mini3D);
 
           offsetIndex++;
         });
