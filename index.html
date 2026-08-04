@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cthulhu Wars — The Stars Are Right</title>
+  <meta name="description" content="A web-based digital implementation of the Cthulhu Wars board game with Solana wallet integration.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/css/main.css">
+  <link rel="stylesheet" href="/src/css/map.css">
+  <link rel="stylesheet" href="/src/css/ui.css">
+  <link rel="stylesheet" href="/src/css/wallet.css">
+  <link rel="stylesheet" href="/src/css/animations.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Setup Screen (shown initially) -->
+    <div id="setup-screen"></div>
+    
+    <!-- Game UI (hidden until game starts) -->
+    <div id="game-ui" style="display:none">
+      <!-- Header -->
+      <header id="header">
+        <div id="round-counter" class="mono">Round 1</div>
+        <div id="phase-indicator">Setup</div>
+        <div id="current-player"></div>
+        <button id="rulebook-btn" class="rulebook-btn">📜 Rulebook</button>
+        <div id="header-wallet"></div>
+      </header>
+      
+      <!-- Main Area -->
+      <main id="main-area">
+        <div id="map-container"></div>
+        <aside id="faction-panel" class="glass">
+          <div id="player-tabs" class="player-tabs"></div>
+          <div class="panel-section">
+            <label class="panel-label">Power</label>
+            <div class="power-display">
+              <span id="power-value" class="power-value mono">0</span>
+              <div class="power-meter"><div id="power-fill" class="power-meter-fill"></div></div>
+            </div>
+          </div>
+          <div class="panel-section">
+            <label class="panel-label">Doom</label>
+            <div class="doom-display">
+              <span id="doom-value" class="doom-counter mono">0</span>
+              <div class="power-meter"><div id="doom-fill" class="power-meter-fill" style="background:linear-gradient(90deg,#880e4f,#ff1744)"></div></div>
+            </div>
+          </div>
+          <div class="panel-section">
+            <label class="panel-label">Units</label>
+            <div id="unit-roster" class="unit-roster"></div>
+          </div>
+          <div class="panel-section">
+            <label class="panel-label">Spellbooks</label>
+            <div id="spellbook-list" class="spellbook-list"></div>
+          </div>
+        </aside>
+      </main>
+      
+      <!-- Action Bar -->
+      <div id="action-bar"></div>
+      
+      <!-- Game Log -->
+      <div id="game-log" class="glass"></div>
+    </div>
+    
+    <!-- Modals -->
+    <div id="combat-modal"></div>
+    <div id="selection-modal"></div>
+    <div id="rulebook-modal"></div>
+    <div id="phase-banner" style="display:none"></div>
+    <div id="end-screen"></div>
+  </div>
+  
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

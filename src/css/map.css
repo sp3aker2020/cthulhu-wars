@@ -1,0 +1,99 @@
+#map-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, #0d2137 0%, #070b14 100%);
+}
+
+#game-map {
+  width: 100%;
+  height: 100%;
+}
+
+.map-region {
+  cursor: pointer;
+}
+
+.map-region path,
+.map-region polygon {
+  fill: rgba(26, 35, 50, 0.4);
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.map-region:hover path,
+.map-region:hover polygon {
+  fill: rgba(255, 255, 255, 0.2);
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
+}
+
+.map-region.selected path,
+.map-region.selected polygon {
+  stroke: white;
+  stroke-width: 3;
+  animation: pulse 2s infinite;
+}
+
+.map-region.valid-target path,
+.map-region.valid-target polygon {
+  fill: rgba(105, 240, 174, 0.3) !important;
+  stroke: #69f0ae !important;
+  stroke-width: 3.5 !important;
+  animation: glow-pulse 1.2s infinite alternate;
+}
+
+.map-region.invalid path,
+.map-region.invalid polygon {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.region-land path,
+.region-land polygon {
+  fill: rgba(30, 20, 15, 0.3);
+}
+
+.region-ocean path,
+.region-ocean polygon {
+  fill: rgba(10, 30, 50, 0.3);
+}
+
+.region-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  fill: rgba(255, 255, 255, 0.6);
+  text-anchor: middle;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
+.gate-marker circle {
+  r: 8;
+  animation: gate-pulse 2s infinite;
+}
+
+.gate-marker.abandoned circle {
+  fill: gray;
+}
+
+.unit-token {
+  font-size: 14px;
+}
+
+.unit-count {
+  font-size: 9px;
+  fill: white;
+  font-family: 'Fira Code', monospace;
+}
+
+.adjacency-line {
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}

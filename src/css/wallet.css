@@ -1,0 +1,31 @@
+.wallet-badge {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.wallet-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00c853;
+  animation: pulse 2s infinite;
+}
+
+.disconnect-btn {
+  font-size: 0.7rem;
+  opacity: 0.5;
+  cursor: pointer;
+  text-decoration: underline;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.disconnect-btn:hover {
+  opacity: 1;
+}
