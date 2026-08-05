@@ -41,6 +41,9 @@ export class ProfilePage {
 
     // Fetch data in parallel
     const walletAddr = this.wallet.getPublicKey();
+    if (walletAddr && this.store) {
+      await this.store.syncOnChainBalance(walletAddr);
+    }
     const [profile, history, leaderboard] = await Promise.all([
       ProfileAPI.getProfile(walletAddr),
       ProfileAPI.getMatchHistory(walletAddr),
@@ -185,6 +188,16 @@ export class ProfilePage {
     identity.appendChild(nameSection);
     header.appendChild(identity);
 
+    // On-Chain Token Balance Badge
+    const balanceBadge = createElement('div', { 
+      class: 'profile-balance-badge glass', 
+      style: 'margin-left:auto;padding:12px 20px;border-radius:12px;border:1px solid #00e676;background:rgba(0,230,118,0.1);text-align:right;' 
+    }, [
+      createElement('div', { style: 'font-size:0.8rem;color:#00e676;opacity:0.8;' }, ['On-Chain $CTHULHU Balance']),
+      createElement('div', { style: 'font-size:1.4rem;font-weight:bold;color:#00e676;margin-top:2px;' }, [`🪙 ${(p.balance || 0).toLocaleString()}`])
+    ]);
+    header.appendChild(balanceBadge);
+
     return header;
   }
 
@@ -224,6 +237,7 @@ export class ProfilePage {
     const grid = createElement('div', { class: 'profile-stats-grid' });
 
     const cards = [
+      { label: '$CTHULHU Balance', value: `${(p.balance || 0).toLocaleString()} 🪙`, color: '#00e676', icon: '🪙' },
       { label: 'Games Played', value: p.gamesPlayed || 0, color: '#448aff', icon: '🎲' },
       { label: 'Wins', value: p.wins || 0, color: '#00c853', icon: '🏆' },
       { label: 'Losses', value: p.losses || 0, color: '#ff1744', icon: '💀' },

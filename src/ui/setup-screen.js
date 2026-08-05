@@ -180,7 +180,16 @@ export class SetupScreen {
       const slotEl = createElement('div', { class: 'lobby-slot' });
       
       slotEl.appendChild(createElement('span', { class: 'slot-number mono' }, [`P${i + 1}`]));
-      slotEl.appendChild(createElement('span', { class: 'slot-address' }, [slot.displayName || `Player ${i + 1}`]));
+      
+      let slotBalHTML = '';
+      if (slot.walletAddress) {
+        const p = this.store.getProfile(slot.walletAddress);
+        const bal = p ? (p.balance || 0) : 0;
+        slotBalHTML = ` <span style="color:#00e676;font-weight:bold;font-size:0.85rem;margin-left:6px;">(🪙 ${bal.toLocaleString()})</span>`;
+      }
+      const nameEl = createElement('span', { class: 'slot-address' });
+      nameEl.innerHTML = `${slot.displayName || `Player ${i + 1}`}${slotBalHTML}`;
+      slotEl.appendChild(nameEl);
       
       // Faction dropdown
       const select = createElement('select', { 
@@ -230,10 +239,11 @@ export class SetupScreen {
     
     // Entry Fee Selector
     const feeRow = createElement('div', { style: 'margin-top:20px;text-align:center;padding:16px;background:rgba(0,0,0,0.4);border-radius:12px;border:1px solid rgba(0,230,118,0.3)' });
-    feeRow.appendChild(createElement('h4', { style: 'color:#00e676;margin-bottom:12px;font-family:"Cinzel",serif' }, ['Game Entry Fee']));
+    feeRow.appendChild(createElement('h4', { style: 'color:#00e676;margin-bottom:6px;font-family:"Cinzel",serif' }, ['Game Wager / Entry Fee']));
+    feeRow.appendChild(createElement('div', { style: 'font-size:0.8rem;opacity:0.7;margin-bottom:12px' }, ['Select a wager amount for the winner-takes-all pot, or select No Wager to play for free.']));
     
     const feeOptions = [0, 100, 500, 1000];
-    const feeBtnRow = createElement('div', { style: 'display:flex;gap:8px;justify-content:center' });
+    const feeBtnRow = createElement('div', { style: 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap' });
     
     for (const fee of feeOptions) {
       const active = this.lobby._entryFee === fee;
@@ -244,7 +254,7 @@ export class SetupScreen {
           this.lobby.setEntryFee(fee);
           this.render();
         }
-      }, [fee === 0 ? 'Free' : `🪙 ${fee}`]);
+      }, [fee === 0 ? '🚫 No Wager' : `🪙 ${fee}`]);
       feeBtnRow.appendChild(btn);
     }
     feeRow.appendChild(feeBtnRow);
@@ -252,7 +262,11 @@ export class SetupScreen {
     if (this.lobby._entryFee > 0) {
       const totalPot = this.lobby._entryFee * this.lobby._playerCount;
       feeRow.appendChild(createElement('div', { style: 'margin-top:12px;font-size:1.2rem;font-weight:bold;color:#ffab00' }, [
-        `🏆 Prize Pot: 🪙 ${totalPot} $CTHULHU`
+        `🏆 Total Prize Pot: 🪙 ${totalPot} $CTHULHU`
+      ]));
+    } else {
+      feeRow.appendChild(createElement('div', { style: 'margin-top:10px;font-size:0.9rem;color:#888' }, [
+        '🎮 Casual Match — Playing for fun & stats (No $CTHULHU wagered)'
       ]));
     }
     section.appendChild(feeRow);
