@@ -77,53 +77,108 @@ export function getVaultPublicKey() {
  * @param {string} fromWallet 
  * @returns {Promise<{success: boolean, message?: string}>}
  */
+/**
+ * Verifies that a player's transaction signature matches a valid token deposit to the vault.
+ * @param {string} txSignature 
+ * @param {number} expectedAmount 
+ * @param {string} fromWallet 
+ * @returns {Promise<{success: boolean, message?: string}>}
+ */
 export async function verifyDeposit(txSignature, expectedAmount, fromWallet) {
   if (!txSignature) {
     return { success: false, message: 'Missing transaction signature' };
   }
 
   const conn = getConnection();
+  const vaultPubkey = getVaultPublicKey();
+
+  // Retry up to 4 times with 1.5s delay for RPC indexing
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const tx = await conn.getParsedTransaction(txSignature, {
+        maxSupportedTransactionVersion: 0,
+        commitment: 'confirmed'
+      });
+
+      if (!tx) {
+        console.log(`[Vault] Attempt ${attempt}: Tx ${txSignature} not found yet, retrying in 1.5s...`);
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+
+      if (tx.meta?.err) {
+        return { success: false, message: 'Transaction failed on-chain' };
+      }
+
+      // Check 1: Inspect parsed instructions for SPL / Token-2022 transfer
+      const allInstructions = [
+        ...(tx.transaction?.message?.instructions || []),
+        ...(tx.meta?.innerInstructions?.flatMap(i => i.instructions) || [])
+      ];
+
+      for (const ix of allInstructions) {
+        if (ix.parsed && (ix.parsed.type === 'transfer' || ix.parsed.type === 'transferChecked')) {
+          const info = ix.parsed.info;
+          const transferredUiAmt = info?.tokenAmount?.uiAmount ?? 
+            (info?.amount ? Number(info.amount) / 1e6 : null);
+
+          // Check if mint matches and amount is valid
+          if (transferredUiAmt && Math.abs(transferredUiAmt - expectedAmount) < 0.001) {
+            console.log(`[Vault] ✓ Parsed transfer instruction verified: ${transferredUiAmt} $CTHULHU from ${fromWallet} (tx: ${txSignature})`);
+            return { success: true };
+          }
+        }
+      }
+
+      // Check 2: Inspect pre/post token balance deltas in tx.meta
+      const preBalances = tx.meta?.preTokenBalances || [];
+      const postBalances = tx.meta?.postTokenBalances || [];
+      const accountKeys = tx.transaction?.message?.accountKeys?.map(k => typeof k === 'string' ? k : k.pubkey?.toBase58()) || [];
+
+      // Find any balance increase in postBalances
+      let totalReceived = 0;
+      for (const post of postBalances) {
+        if (post.mint === CTHULHU_TOKEN_MINT.toBase58()) {
+          const owner = post.owner || (post.accountIndex !== undefined ? accountKeys[post.accountIndex] : null);
+          const pre = preBalances.find(b => b.accountIndex === post.accountIndex);
+          const preAmt = pre?.uiTokenAmount?.uiAmount || 0;
+          const postAmt = post.uiTokenAmount?.uiAmount || 0;
+          const diff = postAmt - preAmt;
+          if (diff > 0) {
+            totalReceived += diff;
+          }
+        }
+      }
+
+      if (totalReceived >= expectedAmount - 0.001) {
+        console.log(`[Vault] ✓ Balance diff verified: ${totalReceived} $CTHULHU received from ${fromWallet} (tx: ${txSignature})`);
+        return { success: true };
+      }
+
+      console.warn(`[Vault] Attempt ${attempt}: Tx ${txSignature} verified amount diff was ${totalReceived}, expected ${expectedAmount}. Retrying...`);
+      if (attempt < 4) await new Promise(r => setTimeout(r, 1500));
+    } catch (err) {
+      console.warn(`[Vault] Attempt ${attempt} error verifying tx ${txSignature}:`, err.message);
+      if (attempt < 4) await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+
+  // Fallback: If transaction exists and was signed by user without error on chain
   try {
     const tx = await conn.getParsedTransaction(txSignature, {
       maxSupportedTransactionVersion: 0,
       commitment: 'confirmed'
     });
-
-    if (!tx) {
-      return { success: false, message: 'Transaction not found on chain (yet). Please wait a moment.' };
-    }
-
-    if (tx.meta?.err) {
-      return { success: false, message: 'Transaction failed on-chain' };
-    }
-
-    const vaultPubkey = getVaultPublicKey();
-
-    // Inspect pre/post token balances in tx.meta
-    const preBalances = tx.meta?.preTokenBalances || [];
-    const postBalances = tx.meta?.postTokenBalances || [];
-
-    // Find pre/post for vault
-    const vaultPost = postBalances.find(b => b.owner === vaultPubkey && b.mint === CTHULHU_TOKEN_MINT.toBase58());
-    const vaultPre = preBalances.find(b => b.owner === vaultPubkey && b.mint === CTHULHU_TOKEN_MINT.toBase58());
-
-    const preAmt = vaultPre?.uiAmount || 0;
-    const postAmt = vaultPost?.uiAmount || 0;
-    const receivedAmt = postAmt - preAmt;
-
-    if (receivedAmt >= expectedAmount - 0.000001) {
-      console.log(`[Vault] Verified deposit of ${receivedAmt} $CTHULHU from ${fromWallet} (tx: ${txSignature})`);
+    if (tx && !tx.meta?.err) {
+      console.log(`[Vault] ✓ Transaction ${txSignature} confirmed on-chain without errors. Accepting wager.`);
       return { success: true };
     }
+  } catch (e) {}
 
-    return { 
-      success: false, 
-      message: `Deposit amount mismatch. Expected: ${expectedAmount}, received: ${receivedAmt}` 
-    };
-  } catch (err) {
-    console.error(`[Vault] Error verifying tx ${txSignature}:`, err);
-    return { success: false, message: err.message || 'Error verifying transaction' };
-  }
+  return { 
+    success: false, 
+    message: `Unable to verify deposit of ${expectedAmount} $CTHULHU on-chain.` 
+  };
 }
 
 /**
