@@ -64,11 +64,12 @@ export class PlayerStore {
    * @returns {object}
    */
   createProfile(addr) {
+    const isRealWallet = addr && !addr.startsWith('DEV_') && !addr.startsWith('SOL_');
     const shortAddr = `${addr.slice(0, 4)}...${addr.slice(-4)}`;
     const newProfile = {
       walletAddress: addr,
       displayName: shortAddr,
-      balance: 1000, // Starting $CTHULHU balance
+      balance: isRealWallet ? 0 : 1000, // Real wallets default to 0 on-chain tokens
       inventory: {
         unlockedDice: ['default'],
         activeDice: 'default'
