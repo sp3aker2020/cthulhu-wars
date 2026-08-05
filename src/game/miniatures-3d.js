@@ -88,59 +88,59 @@ export class MiniatureFactory {
   // ========== 3D GEOMETRY BUILDERS ==========
 
   _buildCthulhuMesh(group, mat) {
-    // Muscular Torso
-    const bodyGeo = new THREE.CylinderGeometry(0.75, 0.45, 2.4, 20);
+    // Large Muscular Torso
+    const bodyGeo = new THREE.CylinderGeometry(1.1, 0.65, 3.4, 24);
     const bodyMesh = new THREE.Mesh(bodyGeo, mat);
-    bodyMesh.position.y = 1.2;
+    bodyMesh.position.y = 1.7;
     bodyMesh.castShadow = true;
     bodyMesh.receiveShadow = true;
     group.add(bodyMesh);
 
-    // Head
-    const headGeo = new THREE.SphereGeometry(0.7, 20, 20);
-    headGeo.scale(1, 1.25, 1);
+    // Iconic Cthulhu Head Bulb
+    const headGeo = new THREE.SphereGeometry(1.0, 24, 24);
+    headGeo.scale(1, 1.3, 1.1);
     const headMesh = new THREE.Mesh(headGeo, mat);
-    headMesh.position.set(0, 2.6, 0.1);
+    headMesh.position.set(0, 3.7, 0.15);
     headMesh.castShadow = true;
     headMesh.receiveShadow = true;
     group.add(headMesh);
 
-    // Face Tentacles
-    for (let i = -3; i <= 3; i++) {
-      const angle = (i / 3) * 0.85;
-      const tentGeo = new THREE.TorusGeometry(0.38, 0.09, 10, 20, Math.PI);
+    // Drooping Face Tentacles
+    for (let i = -4; i <= 4; i++) {
+      const angle = (i / 4) * 0.95;
+      const tentGeo = new THREE.TorusGeometry(0.55, 0.14, 12, 24, Math.PI);
       const tentMesh = new THREE.Mesh(tentGeo, mat);
       tentMesh.rotation.y = angle;
-      tentMesh.rotation.x = Math.PI / 2 + 0.35;
-      tentMesh.position.set(Math.sin(angle) * 0.28, 2.15, 0.6 + Math.cos(angle) * 0.1);
+      tentMesh.rotation.x = Math.PI / 2 + 0.4;
+      tentMesh.position.set(Math.sin(angle) * 0.4, 3.1, 0.85 + Math.cos(angle) * 0.15);
       tentMesh.castShadow = true;
       group.add(tentMesh);
     }
 
-    // 3D Bat Wings (Left & Right)
+    // Massive Sprawling Bat Wings (Left & Right)
     [-1, 1].forEach(side => {
       const wingShape = new THREE.Shape();
       wingShape.moveTo(0, 0);
-      wingShape.quadraticCurveTo(side * 1.6, 1.3, side * 2.4, 2.6);
-      wingShape.quadraticCurveTo(side * 1.5, 1.6, side * 1.8, 0.6);
-      wingShape.quadraticCurveTo(side * 0.9, 0.3, 0, 0);
+      wingShape.quadraticCurveTo(side * 2.8, 2.2, side * 4.2, 4.8);
+      wingShape.quadraticCurveTo(side * 2.6, 3.0, side * 3.2, 1.0);
+      wingShape.quadraticCurveTo(side * 1.5, 0.5, 0, 0);
 
-      const extrudeSettings = { depth: 0.1, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03 };
+      const extrudeSettings = { depth: 0.18, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05 };
       const wingGeo = new THREE.ExtrudeGeometry(wingShape, extrudeSettings);
       const wingMesh = new THREE.Mesh(wingGeo, mat);
-      wingMesh.position.set(0, 1.5, -0.2);
-      wingMesh.rotation.y = side * -0.25;
+      wingMesh.position.set(0, 2.2, -0.3);
+      wingMesh.rotation.y = side * -0.3;
       wingMesh.castShadow = true;
       group.add(wingMesh);
     });
 
-    // Muscular Arms
+    // Muscular Arms & Claws
     [-1, 1].forEach(side => {
-      const armGeo = new THREE.CylinderGeometry(0.2, 0.15, 1.3, 14);
+      const armGeo = new THREE.CylinderGeometry(0.32, 0.22, 2.0, 16);
       const armMesh = new THREE.Mesh(armGeo, mat);
-      armMesh.position.set(side * 0.8, 1.75, 0.35);
-      armMesh.rotation.z = side * -0.45;
-      armMesh.rotation.x = 0.45;
+      armMesh.position.set(side * 1.25, 2.6, 0.5);
+      armMesh.rotation.z = side * -0.5;
+      armMesh.rotation.x = 0.5;
       armMesh.castShadow = true;
       group.add(armMesh);
     });

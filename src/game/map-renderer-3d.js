@@ -35,7 +35,7 @@ export class MapRenderer3D {
 
     const aspect = this.container.clientWidth / this.container.clientHeight || 16 / 9;
     this.camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 1000);
-    this.camera.position.set(0, 32, 26);
+    this.camera.position.set(0, 20, 18);
     this.camera.lookAt(this.cameraTarget);
 
     // Renderer
