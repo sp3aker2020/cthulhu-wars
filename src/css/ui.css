@@ -402,35 +402,77 @@
   font-weight: bold;
 }
 
+.die {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 48px;
+  padding: 4px 8px;
+  margin: 4px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1.2rem;
+  line-height: 1.1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.die-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
 .die.kill {
-  background: rgba(255, 23, 68, 0.3);
-  color: #ff1744;
-  border: 2px solid #ff1744;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(185, 28, 28, 0.5));
+  color: #fca5a5;
+  border: 1px solid #ef4444;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
 }
 .die.pain {
-  background: rgba(255, 214, 0, 0.3);
-  color: #ffd600;
-  border: 2px solid #ffd600;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(180, 83, 9, 0.5));
+  color: #fde047;
+  border: 1px solid #f59e0b;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
 }
 .die.miss {
   background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.combat-results { text-align: center; padding: 16px; }
+.combat-container {
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 32px rgba(0, 0, 0, 0.8), 0 0 16px rgba(16, 185, 129, 0.2);
+  background: rgba(13, 17, 23, 0.95);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 580px;
+  margin: auto;
+}
+
+.combat-results { text-align: center; padding: 16px; font-size: 0.95rem; line-height: 1.6; }
 .kill-assignment, .pain-assignment { padding: 12px; margin-top: 12px; }
 
 .toast {
   position: fixed;
-  top: 20px;
+  top: 55px;
   right: 20px;
-  z-index: 950;
+  z-index: 2000;
   padding: 12px 20px;
-  border-radius: 8px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid #10b981;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.3);
+  color: #f8fafc;
   animation: slide-in-right 0.3s ease-out;
-  max-width: 350px;
+  max-width: 380px;
   font-size: 0.9rem;
+  font-weight: 500;
 }
 .toast.fading { animation: fade-out 0.3s ease-in forwards; }
 

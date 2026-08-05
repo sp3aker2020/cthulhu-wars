@@ -718,25 +718,36 @@ export class UIController {
     const defenderFaction = FACTIONS[this.gameState.getPlayer(battleResult.defender.playerIndex).factionId];
     const region = MAP_REGIONS[battleResult.regionId];
     
+    const renderDie = (r) => {
+      const type = r === 6 ? 'kill' : r >= 4 ? 'pain' : 'miss';
+      const label = r === 6 ? 'KILL' : r >= 4 ? 'PAIN' : 'MISS';
+      return `<div class="die ${type}"><span>${r}</span><span class="die-label">${label}</span></div>`;
+    };
+
     modal.innerHTML = `
       <div class="combat-container glass">
+        <div style="text-align:center;margin-bottom:12px">
+          <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,0.15);color:#10b981;padding:4px 12px;border-radius:20px;border:1px solid rgba(16,185,129,0.4);font-size:0.8rem;font-weight:600">
+            🛡️ Solana On-Chain Referee Verified
+          </div>
+        </div>
         <div class="combat-header">⚔️ Battle in ${region ? region.name : battleResult.regionId} ⚔️</div>
         <div class="combat-sides">
           <div class="combat-side attacker" style="border-top:3px solid ${attackerFaction.color}">
             <h4 style="color:${attackerFaction.color}">${attackerFaction.name} (Attacker)</h4>
             <div class="combat-units">${battleResult.attacker.units.map(u => UNIT_ICONS[u.unitType] || '👤').join(' ')}</div>
             <div class="combat-dice-count mono">${battleResult.attacker.dice} dice</div>
-            <div id="attacker-dice" class="dice-area">
-              ${battleResult.attacker.rolls.map(r => `<span class="die ${r === 6 ? 'kill' : r >= 4 ? 'pain' : 'miss'}">${r}</span>`).join('')}
+            <div id="attacker-dice" class="dice-area" style="display:flex;gap:6px;justify-content:center;margin-top:8px">
+              ${battleResult.attacker.rolls.map(r => renderDie(r)).join('')}
             </div>
           </div>
-          <div class="vs-divider" style="display:flex;align-items:center;font-size:2rem;opacity:0.3">VS</div>
+          <div class="vs-divider" style="display:flex;align-items:center;font-size:1.8rem;opacity:0.3">VS</div>
           <div class="combat-side defender" style="border-top:3px solid ${defenderFaction.color}">
             <h4 style="color:${defenderFaction.color}">${defenderFaction.name} (Defender)</h4>
             <div class="combat-units">${battleResult.defender.units.map(u => UNIT_ICONS[u.unitType] || '👤').join(' ')}</div>
             <div class="combat-dice-count mono">${battleResult.defender.dice} dice</div>
-            <div id="defender-dice" class="dice-area">
-              ${battleResult.defender.rolls.map(r => `<span class="die ${r === 6 ? 'kill' : r >= 4 ? 'pain' : 'miss'}">${r}</span>`).join('')}
+            <div id="defender-dice" class="dice-area" style="display:flex;gap:6px;justify-content:center;margin-top:8px">
+              ${battleResult.defender.rolls.map(r => renderDie(r)).join('')}
             </div>
           </div>
         </div>
@@ -745,7 +756,7 @@ export class UIController {
           <div><span style="color:${defenderFaction.color}">${defenderFaction.name}</span> inflicts: <strong>${battleResult.defenderKills} Kills</strong>, <strong>${battleResult.defenderPains} Pains</strong></div>
         </div>
         <div style="text-align:center;margin-top:16px">
-          <button id="combat-continue" class="btn start-btn">Continue</button>
+          <button id="combat-continue" class="btn start-btn" style="background:#10b981;color:#000;font-weight:bold;padding:10px 24px;border:none">Apply On-Chain Results</button>
         </div>
       </div>
     `;
