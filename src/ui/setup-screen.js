@@ -146,9 +146,13 @@ export class SetupScreen {
     const pubkey = this.wallet.getPublicKey();
     const profile = pubkey ? this.store.getProfile(pubkey) : null;
     const bal = profile ? (profile.balance || 0) : 0;
+    const isRealWallet = pubkey && !pubkey.startsWith('DEV_') && !pubkey.startsWith('SOL_');
+    const balLabel = isRealWallet ? 'On-Chain' : 'In-Game';
+    const balColor = isRealWallet ? '#00e676' : '#ffd600';
 
     const badge = createElement('div', { class: 'wallet-badge glass', style: 'display:flex;align-items:center;gap:12px;' }, [
-      createElement('span', { class: 'token-balance', style: 'color:#00e676;font-weight:bold;' }, [`🪙 ${bal.toLocaleString()} $CTHULHU`]),
+      createElement('span', { class: 'token-balance', style: `color:${balColor};font-weight:bold;` }, [`🪙 ${bal.toLocaleString()} $CTHULHU`]),
+      createElement('span', { style: 'font-size:0.65rem;opacity:0.6;color:' + balColor }, [`(${balLabel})`]),
       createElement('span', { style: 'opacity:0.3;' }, ['|']),
       createElement('span', { class: 'wallet-dot' }),
       createElement('span', {}, [this.wallet.getShortAddress() || 'Connected']),

@@ -41,16 +41,34 @@ export class ProfilePage {
 
     // Fetch data in parallel
     const walletAddr = this.wallet.getPublicKey();
+    
+    // Sync on-chain balance first
+    this._onChainBalance = null;
     if (walletAddr && this.store) {
-      await this.store.syncOnChainBalance(walletAddr);
+      try {
+        const bal = await this.store.syncOnChainBalance(walletAddr);
+        this._onChainBalance = (typeof bal === 'number') ? bal : null;
+      } catch (err) {
+        console.warn('On-chain balance sync failed:', err);
+      }
     }
+    
     const [profile, history, leaderboard] = await Promise.all([
-      ProfileAPI.getProfile(walletAddr),
-      ProfileAPI.getMatchHistory(walletAddr),
-      ProfileAPI.getLeaderboard()
+      ProfileAPI.getProfile(walletAddr).catch(() => null),
+      ProfileAPI.getMatchHistory(walletAddr).catch(() => []),
+      ProfileAPI.getLeaderboard().catch(() => [])
     ]);
 
-    this._profile = profile;
+    this._profile = profile || {};
+    
+    // Use on-chain balance if available, otherwise fall back to store profile
+    if (this._onChainBalance !== null) {
+      this._profile.onChainBalance = this._onChainBalance;
+    } else if (walletAddr && this.store) {
+      const storeProfile = this.store.getProfile(walletAddr);
+      this._profile.onChainBalance = storeProfile.balance || 0;
+    }
+    
     this._history = history || [];
     this._leaderboard = leaderboard || [];
 
@@ -168,7 +186,7 @@ export class ProfilePage {
             const currentProfile = this.store.getProfile(walletAddr);
             const phantomProfile = this.store.getProfile(phantomKey);
             phantomProfile.balance = (phantomProfile.balance || 0) + (currentProfile.balance || 0);
-            this.store.saveProfiles();
+            this.store._save();
           }
 
           await this.wallet.connect('phantom');
@@ -189,13 +207,42 @@ export class ProfilePage {
     header.appendChild(identity);
 
     // On-Chain Token Balance Badge
+    const onChainBal = p.onChainBalance;
+    const hasOnChain = typeof onChainBal === 'number';
+    const displayBal = hasOnChain ? onChainBal : (p.balance || 0);
+    const isRealWallet = walletAddr && !walletAddr.startsWith('DEV_') && !walletAddr.startsWith('SOL_');
+    
     const balanceBadge = createElement('div', { 
       class: 'profile-balance-badge glass', 
-      style: 'margin-left:auto;padding:12px 20px;border-radius:12px;border:1px solid #00e676;background:rgba(0,230,118,0.1);text-align:right;' 
-    }, [
-      createElement('div', { style: 'font-size:0.8rem;color:#00e676;opacity:0.8;' }, ['On-Chain $CTHULHU Balance']),
-      createElement('div', { style: 'font-size:1.4rem;font-weight:bold;color:#00e676;margin-top:2px;' }, [`🪙 ${(p.balance || 0).toLocaleString()}`])
-    ]);
+      style: 'margin-left:auto;padding:16px 24px;border-radius:14px;border:1px solid #00e676;background:rgba(0,230,118,0.08);text-align:right;min-width:180px;' 
+    });
+    
+    // On-chain balance (real wallet)
+    if (isRealWallet) {
+      balanceBadge.appendChild(
+        createElement('div', { style: 'font-size:0.7rem;color:#00e676;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;' }, ['On-Chain $CTHULHU'])
+      );
+      balanceBadge.appendChild(
+        createElement('div', { style: 'font-size:1.6rem;font-weight:bold;color:#00e676;font-family:"Fira Code",monospace;' }, [`🪙 ${displayBal.toLocaleString()}`])
+      );
+      if (hasOnChain) {
+        balanceBadge.appendChild(
+          createElement('div', { style: 'font-size:0.65rem;color:#4caf50;opacity:0.6;margin-top:2px;' }, ['✓ Verified via Solana RPC'])
+        );
+      }
+    } else {
+      // Dev/social login — no real on-chain balance
+      balanceBadge.appendChild(
+        createElement('div', { style: 'font-size:0.7rem;color:#ffd600;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;' }, ['In-Game Balance'])
+      );
+      balanceBadge.appendChild(
+        createElement('div', { style: 'font-size:1.6rem;font-weight:bold;color:#ffd600;font-family:"Fira Code",monospace;' }, [`🪙 ${displayBal.toLocaleString()}`])
+      );
+      balanceBadge.appendChild(
+        createElement('div', { style: 'font-size:0.65rem;color:#ff9800;opacity:0.6;margin-top:2px;' }, ['Link Phantom wallet for on-chain balance'])
+      );
+    }
+    
     header.appendChild(balanceBadge);
 
     return header;
@@ -237,7 +284,7 @@ export class ProfilePage {
     const grid = createElement('div', { class: 'profile-stats-grid' });
 
     const cards = [
-      { label: '$CTHULHU Balance', value: `${(p.balance || 0).toLocaleString()} 🪙`, color: '#00e676', icon: '🪙' },
+      { label: 'On-Chain $CTHULHU', value: `${(p.onChainBalance ?? p.balance ?? 0).toLocaleString()} 🪙`, color: '#00e676', icon: '🪙' },
       { label: 'Games Played', value: p.gamesPlayed || 0, color: '#448aff', icon: '🎲' },
       { label: 'Wins', value: p.wins || 0, color: '#00c853', icon: '🏆' },
       { label: 'Losses', value: p.losses || 0, color: '#ff1744', icon: '💀' },

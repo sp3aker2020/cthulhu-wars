@@ -24,7 +24,7 @@ class CthulhuWarsApp {
     this.diceRenderer = null;
     this.uiController = null;
     this.is3DMode = false;
-    this.profilePage = new ProfilePage(this.wallet);
+    this.profilePage = new ProfilePage(this.wallet, this.playerStore);
   }
 
   async init() {
@@ -95,12 +95,16 @@ class CthulhuWarsApp {
       const pubkey = this.wallet.getPublicKey();
       const profile = this.playerStore.getProfile(pubkey);
       const balance = profile.balance || 0;
+      const isRealWallet = pubkey && !pubkey.startsWith('DEV_') && !pubkey.startsWith('SOL_');
       
-      const renderHeaderBalance = (bal) => {
+      const renderHeaderBalance = (bal, verified = false) => {
+        const balColor = isRealWallet ? '#00e676' : '#ffd600';
+        const balLabel = isRealWallet ? (verified ? 'On-Chain ✓' : 'On-Chain') : 'In-Game';
         headerWallet.innerHTML = `
-          <div class="wallet-badge" style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #00e676;">
-            <div class="token-balance" style="color: #00e676; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+          <div class="wallet-badge" style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid ${balColor};">
+            <div class="token-balance" style="color: ${balColor}; font-weight: bold; display: flex; align-items: center; gap: 4px;">
               <span style="font-size: 1.1em;">🪙</span> ${bal.toLocaleString()} $CTHULHU
+              <span style="font-size:0.6rem;opacity:0.6;">(${balLabel})</span>
             </div>
             <div style="width: 1px; height: 14px; background: rgba(255,255,255,0.2);"></div>
             <div><span class="wallet-dot"></span>${this.wallet.getShortAddress()}</div>
@@ -111,11 +115,13 @@ class CthulhuWarsApp {
       renderHeaderBalance(balance);
       
       // Async sync real on-chain $CTHULHU balance
-      this.playerStore.syncOnChainBalance(pubkey).then(onChainBal => {
-        if (typeof onChainBal === 'number') {
-          renderHeaderBalance(onChainBal);
-        }
-      });
+      if (isRealWallet) {
+        this.playerStore.syncOnChainBalance(pubkey).then(onChainBal => {
+          if (typeof onChainBal === 'number') {
+            renderHeaderBalance(onChainBal, true);
+          }
+        });
+      }
     }
     
     // Start game loop
@@ -175,10 +181,17 @@ class CthulhuWarsApp {
       const profile = this.playerStore.getProfile(pubkey);
       const isWinner = winner && winner.playerIndex === this.gameState.state.players.findIndex(p => p.walletAddress === pubkey);
       
-      this.playerStore.updateStats(pubkey, {
-        won: isWinner,
-        score: scores.find(s => s.playerIndex === this.gameState.state.players.findIndex(p => p.walletAddress === pubkey))?.score || 0
-      });
+      const myPlayerIdx = this.gameState.state.players.findIndex(p => p.walletAddress === pubkey);
+      const myPlayer = myPlayerIdx >= 0 ? this.gameState.state.players[myPlayerIdx] : null;
+      
+      if (myPlayer) {
+        this.playerStore.recordGameResult(pubkey, {
+          factionId: myPlayer.factionId,
+          doom: myPlayer.doom,
+          won: isWinner,
+          elderSignTotal: myPlayer.elderSigns?.reduce((sum, s) => sum + (s.value || 0), 0) || 0
+        });
+      }
       
       // Update global API
       if (window.app && window.app.API_URL) {
