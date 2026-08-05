@@ -31,9 +31,9 @@ export function createElement(tag, attrs = {}, children = []) {
   return el;
 }
 
-export function show(el) { if (el) el.style.display = ''; }
+export function show(el, displayStyle = 'block') { if (el) el.style.display = displayStyle; }
 export function hide(el) { if (el) el.style.display = 'none'; }
-export function toggle(el) { if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; }
+export function toggle(el, displayStyle = 'block') { if (el) el.style.display = el.style.display === 'none' ? displayStyle : 'none'; }
 
 export function addClass(el, ...cls) { if (el) el.classList.add(...cls.filter(Boolean)); }
 export function removeClass(el, ...cls) { if (el) el.classList.remove(...cls.filter(Boolean)); }

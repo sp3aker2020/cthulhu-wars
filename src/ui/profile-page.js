@@ -37,7 +37,7 @@ export class ProfilePage {
     if (!container) return;
 
     container.innerHTML = '<div class="profile-loading"><div class="profile-spinner"></div><p>Loading profile...</p></div>';
-    show(container);
+    container.style.display = 'block';
 
     // Fetch data in parallel
     const walletAddr = this.wallet.getPublicKey();
