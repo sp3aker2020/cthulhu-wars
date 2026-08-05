@@ -12,6 +12,7 @@
     "vite": "^8.2.0"
   },
   "dependencies": {
+    "@privy-io/js-sdk-core": "^0.68.6",
     "three": "^0.185.1"
   }
 }

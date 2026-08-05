@@ -92,8 +92,10 @@ export class SetupScreen {
     
     const wallets = this.wallet.getAvailableWallets();
     for (const w of wallets) {
+      const isTwitter = w.id === 'privy_twitter';
       const btn = createElement('button', {
         class: `wallet-btn ${w.id}`,
+        style: isTwitter ? 'background:#0f1419;border:1px solid #1d9bf0;color:#fff;font-weight:bold;margin-bottom:12px' : '',
         click: async () => {
           try {
             await this.wallet.connect(w.id);
@@ -105,7 +107,7 @@ export class SetupScreen {
       }, [
         createElement('span', { class: 'wallet-icon' }, [w.icon]),
         createElement('span', { class: 'wallet-name' }, [w.name]),
-        createElement('span', { class: 'wallet-status' }, [w.detected ? 'Detected' : 'Not installed']),
+        createElement('span', { class: 'wallet-status' }, [isTwitter ? 'Privy Auth' : (w.detected ? 'Detected' : 'Not installed')]),
       ]);
       section.appendChild(btn);
     }
