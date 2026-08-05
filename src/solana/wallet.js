@@ -42,7 +42,7 @@ export class WalletManager extends EventEmitter {
    */
   getAvailableWallets() {
     return [
-      { id: 'privy_twitter', name: 'Sign in with 𝕏 (Twitter)', icon: '𝕏', detected: true, type: 'social' },
+      { id: 'privy_twitter', name: 'Sign In with Privy (𝕏 + Solana)', icon: '🔐', detected: true, type: 'social' },
       { id: 'phantom', name: 'Phantom', icon: '👻', detected: !!(window.phantom?.solana?.isPhantom || window.solana?.isPhantom), type: 'wallet' },
       { id: 'solflare', name: 'Solflare', icon: '☀️', detected: !!window.solflare?.isSolflare, type: 'wallet' },
       { id: 'backpack', name: 'Backpack', icon: '🎒', detected: !!window.backpack, type: 'wallet' },
