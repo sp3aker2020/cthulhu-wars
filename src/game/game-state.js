@@ -34,8 +34,9 @@ export class GameState extends EventEmitter {
   /**
    * Initializes the game state.
    * @param {Array<{walletAddress: string, factionId: string}>} playerConfigs 
+   * @param {number} entryFee
    */
-  initGame(playerConfigs = []) {
+  initGame(playerConfigs = [], entryFee = 0) {
     this.state.elderSignPool = this._shuffle([...GAME_CONFIG.ELDER_SIGN_POOL]);
     this.state.players = playerConfigs.map((config, index) => {
       const faction = FACTIONS[config.factionId];
@@ -94,6 +95,8 @@ export class GameState extends EventEmitter {
     this.state.phase = 'GATHER_POWER';
     this.state.round = 1;
     this.state.currentPlayerIndex = this.state.firstPlayerIndex;
+    this.state.entryFee = entryFee;
+    this.state.prizePot = entryFee * this.state.players.length;
     
     this.emit('gameInitialized', this.getState());
   }

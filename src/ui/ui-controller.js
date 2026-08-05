@@ -52,6 +52,23 @@ export class UIController {
     if (playerEl && faction) {
       playerEl.innerHTML = `<span class="player-dot" style="background:${faction.color};display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px"></span> ${faction.name}`;
     }
+
+    // Refresh wallet balance if available
+    const headerWallet = $('#header-wallet');
+    if (headerWallet && window.app && window.app.wallet.isConnected()) {
+      const pubkey = window.app.wallet.getPublicKey();
+      const profile = window.app.playerStore.getProfile(pubkey);
+      const balance = profile.balance || 0;
+      headerWallet.innerHTML = `
+        <div class="wallet-badge" style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #00e676;">
+          <div class="token-balance" style="color: #00e676; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 1.1em;">🪙</span> ${balance}
+          </div>
+          <div style="width: 1px; height: 14px; background: rgba(255,255,255,0.2);"></div>
+          <div><span class="wallet-dot"></span>${window.app.wallet.getShortAddress()}</div>
+        </div>
+      `;
+    }
   }
 
   // ========== FACTION PANEL ==========
@@ -275,7 +292,21 @@ export class UIController {
     // We need a CombatEngine for logic
     const combatEngine = new CombatEngine(this.gameState);
     
-    if (combat.step === 'WAITING_FOR_REFEREE') {
+    if (combat.step === 'WAGER_PHASE') {
+       // Only prompt human players. For now, assume current player is human
+       const wagers = combat.wagers;
+       if (combat.attacker === pi && !combat.attackerWagered) {
+          const wager = await this.promptWager(pi, `Attacker: Place your wager in $CTHULHU`);
+          if (wager !== null) {
+            applyAction(this.gameState, { type: 'SUBMIT_WAGER', playerIndex: pi, payload: { amount: wager } });
+          }
+       } else if (combat.defender === pi && !combat.defenderWagered) {
+          const wager = await this.promptWager(pi, `Defender: Place your wager in $CTHULHU`);
+          if (wager !== null) {
+            applyAction(this.gameState, { type: 'SUBMIT_WAGER', playerIndex: pi, payload: { amount: wager } });
+          }
+       }
+    } else if (combat.step === 'WAITING_FOR_REFEREE') {
       if (combat.attacker === pi) {
          if (!this._refereeInitialized) {
             this.showToast('Initializing On-Chain Referee...', null);
@@ -661,6 +692,52 @@ export class UIController {
     });
   }
 
+  async promptWager(playerIndex, message) {
+    return new Promise(resolve => {
+      const modal = $('#selection-modal');
+      if (!modal) { resolve(0); return; }
+      modal.innerHTML = '';
+      addClass(modal, 'active');
+      
+      const p = this.gameState.getPlayer(playerIndex);
+      const f = FACTIONS[p.factionId];
+      
+      // Get balance if available
+      let balance = 0;
+      if (p.walletAddress && window.app && window.app.playerStore) {
+        balance = window.app.playerStore.getProfile(p.walletAddress)?.balance || 0;
+      }
+      
+      const container = createElement('div', { class: 'selection-container glass', style: `border-top: 4px solid ${f.color}` });
+      container.appendChild(createElement('h3', { style: `color: ${f.color}` }, [message]));
+      
+      container.appendChild(createElement('div', { style: 'margin: 10px 0; font-size: 0.9rem; opacity: 0.8;' }, [
+        `Your Balance: `,
+        createElement('strong', { style: 'color: #00e676;' }, [`🪙 ${balance} $CTHULHU`])
+      ]));
+      
+      const wagerAmounts = [0, 50, 100, 250, 500, 'ALL'];
+      const btnRow = createElement('div', { style: 'display:flex;gap:12px;margin-top:20px;justify-content:center;flex-wrap:wrap' });
+      
+      for (const amt of wagerAmounts) {
+        const amount = amt === 'ALL' ? balance : amt;
+        const btn = createElement('button', { 
+          class: 'btn', 
+          disabled: amount > balance,
+          click: () => { removeClass(modal, 'active'); resolve(amount); } 
+        }, [amt === 0 ? 'No Wager' : `🪙 ${amt}`]);
+        
+        if (amount > balance) {
+          btn.style.opacity = '0.3';
+        }
+        btnRow.appendChild(btn);
+      }
+      
+      container.appendChild(btnRow);
+      modal.appendChild(container);
+    });
+  }
+
   // ========== PHASE BANNER ==========
   async showPhaseBanner(phaseName) {
     const banner = $('#phase-banner');
@@ -708,7 +785,8 @@ export class UIController {
     log.scrollTop = log.scrollHeight;
   }
 
-  // ========== COMBAT MODAL ==========
+  
+  
   async showCombatModal(battleResult) {
     const modal = $('#combat-modal');
     if (!modal) return;
@@ -766,33 +844,43 @@ export class UIController {
   }
 
   // ========== END SCREEN ==========
-  showEndScreen(results) {
+  showEndScreen(results, prizePot = 0) {
     const screen = $('#end-screen');
     if (!screen) return;
     addClass(screen, 'active');
-    const winner = results.find(r => r.winner);
+    
+    const winner = results[0]; // Assuming results are sorted winner-first by main.js
     const winnerFaction = winner ? FACTIONS[winner.factionId] : null;
     
-    let scoresHTML = results.map(r => {
+    let scoresHTML = results.map((r, i) => {
       const f = FACTIONS[r.factionId];
-      return `<div class="score-row ${r.winner ? 'winner' : ''}" style="${r.winner ? `background:${f.color}15` : ''}">
-        <span style="color:${f.color}">${f.name}</span>
-        <span class="mono">${r.visibleDoom} + ${r.elderSignTotal} = ${r.finalDoom}${!r.eligible ? ' (DISQUALIFIED)' : ''}</span>
+      const isWinner = i === 0;
+      return `<div class="score-row ${isWinner ? 'winner' : ''}" style="${isWinner ? `background:${f.color}15` : ''}">
+        <span style="color:${f.color}">${isWinner ? '👑 ' : ''}${f.name}</span>
+        <span class="mono">Doom: ${r.score} | Books: ${r.spellbooks}/6</span>
       </div>`;
     }).join('');
     
+    let prizeHTML = '';
+    if (prizePot > 0 && winnerFaction) {
+      prizeHTML = `
+        <div style="background: rgba(0,230,118,0.2); border: 1px solid #00e676; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; animation: pulse 2s infinite">
+          <h3 style="color: #00e676; margin: 0 0 10px 0;">🏆 ${winnerFaction.name} claims the Prize Pot!</h3>
+          <div style="color: #00e676; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #00e676">🪙 +${prizePot} $CTHULHU</div>
+        </div>
+      `;
+    }
+    
     screen.innerHTML = `
-      <div class="end-container glass">
+      <div class="end-container glass" style="${winnerFaction ? `border: 2px solid ${winnerFaction.color}; box-shadow: 0 0 30px ${winnerFaction.color}40` : ''}">
         <div class="winner-title" style="color:${winnerFaction?.color || '#fff'}">
           ${winnerFaction ? `${UNIT_ICONS[winnerFaction.greatOldOne?.id || 'great_cthulhu'] || '🏆'} ${winnerFaction.name} Wins! ${UNIT_ICONS[winnerFaction.greatOldOne?.id || 'great_cthulhu'] || '🏆'}` : 'No Winner!'}
         </div>
+        ${prizeHTML}
         <div class="final-scores">
-          <div class="score-header" style="display:flex;justify-content:space-between;padding:8px;opacity:0.5;font-size:0.8rem">
-            <span>Faction</span><span>Doom + Elder Signs = Total</span>
-          </div>
           ${scoresHTML}
         </div>
-        <button class="btn play-again-btn start-btn" onclick="location.reload()">Play Again</button>
+        <button class="btn play-again-btn start-btn" style="margin-top:20px;width:100%" onclick="location.reload()">Play Again</button>
       </div>
     `;
   }

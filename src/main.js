@@ -32,8 +32,17 @@ class CthulhuWarsApp {
     const setupScreen = new SetupScreen(this.wallet, this.playerStore, this.lobby);
     const gameConfig = await setupScreen.show();
     
-    // Game config received - initialize game
-    this.gameState.initGame(gameConfig);
+    // Game config received - deduct entry fees and initialize game
+    const { players, entryFee } = gameConfig;
+    if (entryFee > 0) {
+      for (const p of players) {
+        if (p.walletAddress && !p.walletAddress.startsWith('DEV_')) {
+          this.playerStore.deductBalance(p.walletAddress, entryFee);
+        }
+      }
+    }
+    
+    this.gameState.initGame(players, entryFee);
     
     // Show game UI
     $('#setup-screen').style.display = 'none';
@@ -80,10 +89,22 @@ class CthulhuWarsApp {
       });
     }
     
-    // Show wallet in header
+    // Show wallet and token balance in header
     const headerWallet = $('#header-wallet');
     if (headerWallet && this.wallet.isConnected()) {
-      headerWallet.innerHTML = `<div class="wallet-badge"><span class="wallet-dot"></span>${this.wallet.getShortAddress()}</div>`;
+      const pubkey = this.wallet.getPublicKey();
+      const profile = this.playerStore.getProfile(pubkey);
+      const balance = profile.balance || 0;
+      
+      headerWallet.innerHTML = `
+        <div class="wallet-badge" style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #00e676;">
+          <div class="token-balance" style="color: #00e676; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 1.1em;">🪙</span> ${balance}
+          </div>
+          <div style="width: 1px; height: 14px; background: rgba(255,255,255,0.2);"></div>
+          <div><span class="wallet-dot"></span>${this.wallet.getShortAddress()}</div>
+        </div>
+      `;
     }
     
     // Start game loop
@@ -99,6 +120,10 @@ class CthulhuWarsApp {
       }
     });
     
+    this.gameState.on('combatConcluded', (combat) => {
+       this.handleWagerPayout(combat);
+    });
+    
     // Initial jump to Action Phase if round 1
     if (this.gameState.state.round === 1) {
       this.gameState.setPhase('ACTION');
@@ -108,40 +133,111 @@ class CthulhuWarsApp {
   }
 
   handleGameOver() {
-    const results = this.gameState.getFinalScores();
-    this.uiController.showEndScreen(results);
+    const scores = this.gameState.state.players.map(p => ({
+      playerIndex: p.id,
+      faction: p.factionId,
+      score: p.doom + p.elderSigns.reduce((sum, sign) => sum + (sign.value || 0), 0),
+      spellbooks: p.spellbooksUnlocked.filter(Boolean).length
+    }));
     
-    // Record stats for each player
-    for (const result of results) {
-      const player = this.gameState.getPlayer(result.playerIndex);
-      if (player.walletAddress && !player.walletAddress.startsWith('DEV')) {
-        // Local storage fallback
-        this.playerStore.recordGameResult(player.walletAddress, {
-          factionId: result.factionId,
-          doom: result.finalDoom,
-          won: result.winner,
-          elderSignTotal: result.elderSignTotal,
-        });
-
-        // Record to MongoDB API
-        const opponentFactions = results
-          .filter(r => r.playerIndex !== result.playerIndex)
-          .map(r => r.factionId);
-
-        ProfileAPI.recordGame(player.walletAddress, {
-          factionId: result.factionId,
-          doomScore: result.finalDoom,
-          elderSigns: result.elderSignTotal || 0,
-          won: result.winner,
-          opponentFactions,
-          playerCount: results.length,
-          roundsPlayed: this.gameState.state.round
+    scores.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.spellbooks - a.spellbooks; // Tiebreaker
+    });
+    
+    const winner = scores[0];
+    const prizePot = this.gameState.state.prizePot || 0;
+    
+    // Payout winner
+    if (prizePot > 0 && winner) {
+      const wPlayer = this.gameState.getPlayer(winner.playerIndex);
+      if (wPlayer.walletAddress) {
+        this.playerStore.addBalance(wPlayer.walletAddress, prizePot);
+      }
+    }
+    
+    this.uiController.showEndScreen(scores, prizePot);
+    
+    // Record game in history
+    if (this.wallet.isConnected()) {
+      const pubkey = this.wallet.getPublicKey();
+      const profile = this.playerStore.getProfile(pubkey);
+      const isWinner = winner && winner.playerIndex === this.gameState.state.players.findIndex(p => p.walletAddress === pubkey);
+      
+      this.playerStore.updateStats(pubkey, {
+        won: isWinner,
+        score: scores.find(s => s.playerIndex === this.gameState.state.players.findIndex(p => p.walletAddress === pubkey))?.score || 0
+      });
+      
+      // Update global API
+      if (window.app && window.app.API_URL) {
+        fetch(`${window.app.API_URL}/api/games`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: pubkey,
+            won: isWinner,
+            faction: this.gameState.state.players.find(p => p.walletAddress === pubkey)?.factionId,
+            score: profile.stats.wins
+          })
         }).catch(err => console.warn('Failed to record game to API:', err));
       }
     }
+  }
+
+  handleWagerPayout(combat) {
+    if (!combat || !combat.wagers) return;
+    
+    const atkPlayer = this.gameState.getPlayer(combat.attacker);
+    const defPlayer = this.gameState.getPlayer(combat.defender);
+    
+    const atkWager = combat.wagers.attacker || 0;
+    const defWager = combat.wagers.defender || 0;
+    
+    if (atkWager === 0 && defWager === 0) return; // No wagers placed
+    
+    const pot = atkWager + defWager;
+    
+    // Deduct wagers
+    if (atkWager > 0 && atkPlayer.walletAddress) {
+      this.playerStore.deductBalance(atkPlayer.walletAddress, atkWager);
+    }
+    if (defWager > 0 && defPlayer.walletAddress) {
+      this.playerStore.deductBalance(defPlayer.walletAddress, defWager);
+    }
+    
+    // Determine winner (most kills, then most pains, then tie)
+    const atkScore = combat.results.attackerKills * 2 + combat.results.attackerPains;
+    const defScore = combat.results.defenderKills * 2 + combat.results.defenderPains;
+    
+    if (atkScore > defScore) {
+       // Attacker wins
+       if (atkPlayer.walletAddress) {
+         this.playerStore.addBalance(atkPlayer.walletAddress, pot);
+         this.uiController.showToast(`💰 Wager Won! +${pot} $CTHULHU`, atkPlayer.factionId);
+       }
+    } else if (defScore > atkScore) {
+       // Defender wins
+       if (defPlayer.walletAddress) {
+         this.playerStore.addBalance(defPlayer.walletAddress, pot);
+         this.uiController.showToast(`💰 Wager Won! +${pot} $CTHULHU`, defPlayer.factionId);
+       }
+    } else {
+       // Tie - refund
+       if (atkPlayer.walletAddress && atkWager > 0) {
+         this.playerStore.addBalance(atkPlayer.walletAddress, atkWager);
+       }
+       if (defPlayer.walletAddress && defWager > 0) {
+         this.playerStore.addBalance(defPlayer.walletAddress, defWager);
+       }
+       this.uiController.showToast(`Wager Tied - Tokens Refunded`, null);
+    }
+    
+    this.uiController.updateHeader(); // Refresh UI
   }
 }
 
 // Boot
 const app = new CthulhuWarsApp();
+window.app = app;
 app.init().catch(console.error);

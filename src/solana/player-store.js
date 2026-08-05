@@ -49,6 +49,11 @@ export class PlayerStore {
     const newProfile = {
       walletAddress: addr,
       displayName: shortAddr,
+      balance: 1000, // Starting $CTHULHU balance
+      inventory: {
+        unlockedDice: ['default'],
+        activeDice: 'default'
+      },
       stats: {
         gamesPlayed: 0,
         wins: 0,
@@ -153,5 +158,34 @@ export class PlayerStore {
     const profile = this.getProfile(addr);
     profile.displayName = name;
     this._save();
+  }
+
+  /**
+   * Adds tokens to balance.
+   * @param {string} addr 
+   * @param {number} amount 
+   */
+  addBalance(addr, amount) {
+    const profile = this.getProfile(addr);
+    if (typeof profile.balance !== 'number') profile.balance = 0;
+    profile.balance += amount;
+    this._save();
+  }
+
+  /**
+   * Deducts tokens from balance.
+   * @param {string} addr 
+   * @param {number} amount 
+   * @returns {boolean} True if successful, false if insufficient funds
+   */
+  deductBalance(addr, amount) {
+    const profile = this.getProfile(addr);
+    if (typeof profile.balance !== 'number') profile.balance = 0;
+    if (profile.balance >= amount) {
+      profile.balance -= amount;
+      this._save();
+      return true;
+    }
+    return false;
   }
 }

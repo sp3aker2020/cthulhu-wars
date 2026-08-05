@@ -16,6 +16,7 @@
     "@coral-xyz/anchor": "^0.29.0",
     "@privy-io/js-sdk-core": "^0.68.6",
     "@solana/web3.js": "^1.98.4",
+    "puppeteer-core": "^25.5.0",
     "three": "^0.185.1"
   }
 }

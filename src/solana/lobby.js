@@ -8,12 +8,18 @@ export class LobbyManager extends EventEmitter {
     super();
     this._maxPlayers = maxPlayers;
     this._playerCount = 2;
+    this._entryFee = 0; // Default to Free
     this._slots = Array.from({ length: maxPlayers }, () => ({ 
       walletAddress: null, 
       displayName: null, 
       factionId: null, 
       ready: false 
     }));
+  }
+
+  setEntryFee(amount) {
+    this._entryFee = amount;
+    this.emit('entryFeeChanged', amount);
   }
 
   setPlayerCount(count) {
@@ -88,10 +94,13 @@ export class LobbyManager extends EventEmitter {
   }
 
   getGameConfig() {
-    return this._slots.slice(0, this._playerCount).map((slot, i) => ({
-      walletAddress: slot.walletAddress || `Player_${i + 1}`,
-      factionId: slot.factionId
-    }));
+    return {
+      players: this._slots.slice(0, this._playerCount).map((slot, i) => ({
+        walletAddress: slot.walletAddress || `Player_${i + 1}`,
+        factionId: slot.factionId
+      })),
+      entryFee: this._entryFee
+    };
   }
 
   reset() {

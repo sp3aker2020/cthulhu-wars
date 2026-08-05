@@ -212,20 +212,65 @@ export class SetupScreen {
       section.appendChild(profileRow);
     }
     
+    // Entry Fee Selector
+    const feeRow = createElement('div', { style: 'margin-top:20px;text-align:center;padding:16px;background:rgba(0,0,0,0.4);border-radius:12px;border:1px solid rgba(0,230,118,0.3)' });
+    feeRow.appendChild(createElement('h4', { style: 'color:#00e676;margin-bottom:12px;font-family:"Cinzel",serif' }, ['Game Entry Fee']));
+    
+    const feeOptions = [0, 100, 500, 1000];
+    const feeBtnRow = createElement('div', { style: 'display:flex;gap:8px;justify-content:center' });
+    
+    for (const fee of feeOptions) {
+      const active = this.lobby._entryFee === fee;
+      const btn = createElement('button', {
+        class: `btn ${active ? 'active' : ''}`,
+        style: active ? 'background:#00e676;color:#000;border-color:#00e676;font-weight:bold' : 'color:#00e676;border-color:#00e676',
+        click: () => {
+          this.lobby.setEntryFee(fee);
+          this.render();
+        }
+      }, [fee === 0 ? 'Free' : `🪙 ${fee}`]);
+      feeBtnRow.appendChild(btn);
+    }
+    feeRow.appendChild(feeBtnRow);
+    
+    if (this.lobby._entryFee > 0) {
+      const totalPot = this.lobby._entryFee * this.lobby._playerCount;
+      feeRow.appendChild(createElement('div', { style: 'margin-top:12px;font-size:1.2rem;font-weight:bold;color:#ffab00' }, [
+        `🏆 Prize Pot: 🪙 ${totalPot} $CTHULHU`
+      ]));
+    }
+    section.appendChild(feeRow);
+    
     // Start button
     const canStart = this.lobby.isAllReady();
+    
+    // Check if main player has enough balance
+    let hasFunds = true;
+    if (this.lobby._entryFee > 0 && this.wallet.isConnected()) {
+      const profile = this.store.getProfile(this.wallet.getPublicKey());
+      if ((profile.balance || 0) < this.lobby._entryFee) {
+        hasFunds = false;
+      }
+    }
+    
     const startBtn = createElement('button', {
       class: 'btn start-btn',
-      style: `margin-top:20px;width:100%;font-size:1.2rem;padding:16px;${!canStart ? 'opacity:0.3;cursor:not-allowed' : ''}`,
-      disabled: !canStart,
+      style: `margin-top:20px;width:100%;font-size:1.2rem;padding:16px;${(!canStart || !hasFunds) ? 'opacity:0.3;cursor:not-allowed' : ''}`,
+      disabled: !canStart || !hasFunds,
       click: () => {
-        if (canStart && this._startResolver) {
+        if (canStart && hasFunds && this._startResolver) {
           hide($('#setup-screen'));
           this._startResolver(this.lobby.getGameConfig());
           this._startResolver = null;
         }
       }
-    }, ['⚔️ START GAME ⚔️']);
+    }, [!hasFunds ? '⚠️ Insufficient Funds' : '⚔️ START GAME ⚔️']);
+    
+    if (!hasFunds) {
+      startBtn.style.background = '#d32f2f';
+      startBtn.style.color = '#fff';
+    }
+    
     section.appendChild(startBtn);
     
     screen.appendChild(section);

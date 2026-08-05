@@ -96,9 +96,33 @@ export function applyAction(gameState, action, rng = Math.random) {
         attacker: playerIndex,
         defender: payload.defenderId,
         region: payload.region,
-        step: 'WAITING_FOR_REFEREE',
+        step: 'WAGER_PHASE', // Starts wager phase before referee
+        wagers: { attacker: 0, defender: 0 },
         results: null
       };
+      break;
+
+    case 'SUBMIT_WAGER':
+      if (gameState.state.phase !== 'ACTION') throw new Error('Wrong phase');
+      if (!gameState.state.combat || gameState.state.combat.step !== 'WAGER_PHASE') throw new Error('Not in wager phase');
+      
+      const cWager = gameState.state.combat;
+      if (playerIndex === cWager.attacker) {
+        cWager.wagers.attacker = payload.amount;
+        cWager.attackerWagered = true;
+      } else if (playerIndex === cWager.defender) {
+        cWager.wagers.defender = payload.amount;
+        cWager.defenderWagered = true;
+      }
+      
+      if (cWager.attackerWagered && cWager.defenderWagered) {
+        cWager.step = 'WAITING_FOR_REFEREE';
+        gameState.emit('turnChange'); // Trigger UI loop
+      } else if (cWager.attackerWagered) {
+        // Advance to defender turn for wagering
+        gameState.state.currentPlayerIndex = cWager.defender;
+        gameState.emit('turnChange'); // Trigger UI loop for defender
+      }
       break;
 
     case 'RECEIVE_ROLLS':
@@ -141,6 +165,8 @@ export function applyAction(gameState, action, rng = Math.random) {
       }
       
       if (pCombat.attackerPainsAssigned && pCombat.defenderPainsAssigned) {
+        gameState.emit('combatConcluded', JSON.parse(JSON.stringify(pCombat)));
+        gameState.state.currentPlayerIndex = pCombat.attacker;
         gameState.state.combat = null;
         gameState.advanceTurn();
       }
@@ -292,6 +318,8 @@ function _checkPains(gameState) {
   combat.defenderPainsAssigned = (combat.results.attackerPains === 0);
   
   if (combat.attackerPainsAssigned && combat.defenderPainsAssigned) {
+    gameState.emit('combatConcluded', JSON.parse(JSON.stringify(combat)));
+    gameState.state.currentPlayerIndex = combat.attacker;
     gameState.state.combat = null;
     gameState.advanceTurn();
   }
