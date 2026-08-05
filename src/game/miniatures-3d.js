@@ -94,7 +94,7 @@ export class MiniatureFactory {
     const faceMat = new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
-      alphaTest: 0.05,
+      alphaTest: 0.12,
       side: THREE.DoubleSide
     });
 
