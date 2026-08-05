@@ -147,7 +147,8 @@ export class SetupScreen {
     const profile = pubkey ? this.store.getProfile(pubkey) : null;
     const bal = profile ? (profile.balance || 0) : 0;
     const isRealWallet = pubkey && !pubkey.startsWith('DEV_') && !pubkey.startsWith('SOL_');
-    const balLabel = isRealWallet ? 'On-Chain' : 'In-Game';
+    const isVerified = profile?._balanceVerified === true;
+    const balLabel = isRealWallet ? (isVerified ? 'On-Chain ✓' : 'On-Chain ⏳') : 'In-Game';
     const balColor = isRealWallet ? '#00e676' : '#ffd600';
 
     const badge = createElement('div', { class: 'wallet-badge glass', style: 'display:flex;align-items:center;gap:12px;' }, [

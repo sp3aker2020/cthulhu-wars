@@ -32,16 +32,27 @@ export class PlayerStore {
   /**
    * Syncs real on-chain $CTHULHU token balance for a wallet address.
    * @param {string} addr 
-   * @returns {Promise<number>}
+   * @returns {Promise<number>} On-chain balance, or 0 if unresolvable
    */
   async syncOnChainBalance(addr) {
     if (!addr) return 0;
     const profile = this.getProfile(addr);
+    const isRealWallet = addr && !addr.startsWith('DEV_') && !addr.startsWith('SOL_');
+
     const onChainBal = await getOnChainTokenBalance(addr);
     if (typeof onChainBal === 'number') {
+      console.log(`[PlayerStore] On-chain balance synced for ${addr.slice(0,6)}...: ${onChainBal}`);
       profile.balance = onChainBal;
+      profile._balanceVerified = true;
       this._save();
       return onChainBal;
+    }
+
+    // RPC failed — for real wallets, don't trust stale cached balance
+    if (isRealWallet) {
+      console.warn(`[PlayerStore] RPC sync failed for ${addr.slice(0,6)}..., cached balance: ${profile.balance}`);
+      profile._balanceVerified = false;
+      this._save();
     }
     return profile.balance || 0;
   }
