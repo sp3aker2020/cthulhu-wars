@@ -91,7 +91,7 @@
           },
           {
             "name": "roller",
-            "type": "pubkey"
+            "type": "publicKey"
           },
           {
             "name": "results",
@@ -121,7 +121,7 @@
           },
           {
             "name": "roller",
-            "type": "pubkey"
+            "type": "publicKey"
           },
           {
             "name": "results",
