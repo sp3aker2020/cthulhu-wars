@@ -450,45 +450,72 @@ export class SetupScreen {
         const pubkey = this.wallet.getPublicKey();
         const isRealWallet = pubkey && !pubkey.startsWith('DEV_') && !pubkey.startsWith('SOL_');
 
-        // If there's an entry fee and user is connected with a real Solana wallet
-        if (fee > 0 && isRealWallet && this.wallet._provider) {
+        const gameConfig = this.lobby.getGameConfig();
+        const gameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        gameConfig.gameId = gameId;
+
+        // If there's an entry fee, record wager start immediately
+        if (fee > 0) {
+          const totalPot = fee * this.lobby._playerCount;
+          const playersList = gameConfig.players.map(p => ({
+            walletAddress: p.walletAddress,
+            factionId: p.factionId
+          }));
+
+          let txSig = null;
+          if (isRealWallet && this.wallet._provider) {
+            try {
+              startBtn.disabled = true;
+              startBtn.textContent = '⏳ Fetching Escrow Vault Address...';
+
+              const vaultAddr = await ProfileAPI.getVaultAddress();
+              if (!vaultAddr) {
+                alert('Unable to retrieve escrow vault address from server. Please try again.');
+                startBtn.disabled = false;
+                startBtn.textContent = '⚔️ START GAME ⚔️';
+                return;
+              }
+
+              startBtn.textContent = `👻 Approve Wager Transfer of ${fee} $CTHULHU in Phantom...`;
+              txSig = await executeWagerTransfer(this.wallet._provider, pubkey, vaultAddr, fee);
+
+              startBtn.textContent = '🔍 Verifying Deposit On-Chain...';
+              const verification = await ProfileAPI.verifyWagerDeposit(txSig, pubkey, fee);
+
+              if (!verification || !verification.success) {
+                alert(`Wager deposit verification failed: ${verification?.message || 'Transaction could not be confirmed on-chain'}`);
+                startBtn.disabled = false;
+                startBtn.textContent = '⚔️ START GAME ⚔️';
+                return;
+              }
+
+              console.log('✓ Wager deposit successfully verified on-chain!');
+            } catch (err) {
+              console.error('Wager deposit error:', err);
+              alert(`Wager transaction cancelled or failed: ${err.message || err}`);
+              startBtn.disabled = false;
+              startBtn.textContent = '⚔️ START GAME ⚔️';
+              return;
+            }
+          }
+
+          // Record wager match start in backend DB immediately so it shows in game logs/profile
           try {
-            startBtn.disabled = true;
-            startBtn.textContent = '⏳ Fetching Escrow Vault Address...';
-
-            const vaultAddr = await ProfileAPI.getVaultAddress();
-            if (!vaultAddr) {
-              alert('Unable to retrieve escrow vault address from server. Please try again.');
-              startBtn.disabled = false;
-              startBtn.textContent = '⚔️ START GAME ⚔️';
-              return;
-            }
-
-            startBtn.textContent = `👻 Approve Wager Transfer of ${fee} $CTHULHU in Phantom...`;
-            const txSig = await executeWagerTransfer(this.wallet._provider, pubkey, vaultAddr, fee);
-
-            startBtn.textContent = '🔍 Verifying Deposit On-Chain...';
-            const verification = await ProfileAPI.verifyWagerDeposit(txSig, pubkey, fee);
-
-            if (!verification || !verification.success) {
-              alert(`Wager deposit verification failed: ${verification?.message || 'Transaction could not be confirmed on-chain'}`);
-              startBtn.disabled = false;
-              startBtn.textContent = '⚔️ START GAME ⚔️';
-              return;
-            }
-
-            console.log('✓ Wager deposit successfully verified on-chain!');
+            await ProfileAPI.recordWagerStart({
+              gameId,
+              entryFee: fee,
+              prizePot: totalPot,
+              players: playersList,
+              txSignature: txSig
+            });
+            console.log(`[WagerStart] Recorded wager game ${gameId} with status 'in_progress'`);
           } catch (err) {
-            console.error('Wager deposit error:', err);
-            alert(`Wager transaction cancelled or failed: ${err.message || err}`);
-            startBtn.disabled = false;
-            startBtn.textContent = '⚔️ START GAME ⚔️';
-            return;
+            console.warn('Failed to record wager start:', err);
           }
         }
 
         hide($('#setup-screen'));
-        this._startResolver(this.lobby.getGameConfig());
+        this._startResolver(gameConfig);
         this._startResolver = null;
       }
     }, [!hasFunds ? '⚠️ Insufficient Funds' : '⚔️ START GAME ⚔️']);
@@ -657,11 +684,20 @@ export class SetupScreen {
       table.appendChild(headerRow);
 
       for (const w of logs) {
-        const date = w.completedAt ? new Date(w.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-        const winner = w.winnerWallet ? `${w.winnerWallet.slice(0, 6)}...${w.winnerWallet.slice(-4)}` : '—';
+        const rawDate = w.completedAt || w.createdAt;
+        const date = rawDate ? new Date(rawDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        const winner = w.winnerWallet ? `${w.winnerWallet.slice(0, 6)}...${w.winnerWallet.slice(-4)}` : (w.status === 'in_progress' ? '⚔️ In Match' : '—');
         const faction = w.winnerFaction || '—';
-        const statusText = w.status === 'paid' ? '✅ Paid' : '⏳ Pending Admin Payout';
-        const statusColor = w.status === 'paid' ? '#00c853' : '#ffab00';
+        
+        let statusText = '⏳ Pending Admin Payout';
+        let statusColor = '#ffab00';
+        if (w.status === 'paid') {
+          statusText = '✅ Paid';
+          statusColor = '#00c853';
+        } else if (w.status === 'in_progress') {
+          statusText = '⚔️ In Progress';
+          statusColor = '#448aff';
+        }
 
         const row = createElement('div', { class: 'lb-row', style: 'grid-template-columns: 100px 1fr 140px 120px 150px;' });
         row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'font-size:0.75rem;' }, [date]));

@@ -43,6 +43,9 @@ class CthulhuWarsApp {
     }
     
     this.gameState.initGame(players, entryFee);
+    if (gameConfig.gameId) {
+      this.gameState.state.gameId = gameConfig.gameId;
+    }
     
     // Show game UI
     $('#setup-screen').style.display = 'none';
@@ -178,6 +181,7 @@ class CthulhuWarsApp {
 
       // Record in backend wager log for admin payout
       ProfileAPI.recordWagerGame({
+        gameId: this.gameState.state.gameId,
         entryFee,
         prizePot,
         players: this.gameState.state.players.map(p => ({

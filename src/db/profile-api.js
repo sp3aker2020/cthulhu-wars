@@ -119,6 +119,16 @@ export async function executeWagerPayout(winnerAddress, prizePot) {
 }
 
 /**
+ * Records the start of a wagered match (before or at game start).
+ */
+export async function recordWagerStart(data) {
+  return apiFetch('/api/wager/start', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+/**
  * Records a completed wager match for admin payout / logging.
  */
 export async function recordWagerGame(data) {

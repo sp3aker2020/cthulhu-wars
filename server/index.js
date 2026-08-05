@@ -377,32 +377,91 @@ app.post('/api/wager/payout', async (req, res) => {
 });
 
 // ============================================================
+// ============================================================
+// POST /api/wager/start
+// Logs a wagered match immediately when the match starts or deposit is verified.
+// Status defaults to 'in_progress'.
+// ============================================================
+app.post('/api/wager/start', async (req, res) => {
+  try {
+    const { entryFee, prizePot, players, txSignature, gameId } = req.body;
+    if (!prizePot || !players || players.length === 0) {
+      return res.status(400).json({ error: 'prizePot and players are required' });
+    }
+
+    const wagers = await getWagers();
+    const wagerRecord = {
+      gameId: gameId || `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      entryFee: entryFee || 0,
+      prizePot: prizePot || 0,
+      players: players || [],
+      txSignature: txSignature || null,
+      winnerWallet: null,
+      winnerFaction: null,
+      winnerScore: 0,
+      status: 'in_progress', // Wagered, match in progress
+      createdAt: new Date(),
+      completedAt: null
+    };
+
+    const result = await wagers.insertOne(wagerRecord);
+    console.log(`[WagerStart] Recorded wager game start for ${players.length} players (Pot: ${prizePot} $CTHULHU)`);
+    res.json({ success: true, id: result.insertedId, gameId: wagerRecord.gameId, record: wagerRecord });
+  } catch (err) {
+    console.error('POST /api/wager/start error:', err);
+    res.status(500).json({ error: 'Failed to record wager start' });
+  }
+});
+
+// ============================================================
 // POST /api/wager/record-game
-// Logs a completed wagered match with winner, prize pot, & players.
-// Status defaults to 'pending_admin_payout'.
+// Updates/Logs a completed wagered match with winner, prize pot, & players.
+// Status updates to 'pending_admin_payout'.
 // ============================================================
 app.post('/api/wager/record-game', async (req, res) => {
   try {
-    const { entryFee, prizePot, players, winnerWallet, winnerFaction, winnerScore } = req.body;
+    const { gameId, entryFee, prizePot, players, winnerWallet, winnerFaction, winnerScore } = req.body;
     if (!prizePot || !winnerWallet) {
       return res.status(400).json({ error: 'prizePot and winnerWallet are required' });
     }
 
     const wagers = await getWagers();
-    const wagerRecord = {
-      entryFee: entryFee || 0,
-      prizePot: prizePot || 0,
-      players: players || [],
-      winnerWallet,
-      winnerFaction: winnerFaction || null,
-      winnerScore: winnerScore || 0,
-      status: 'pending_admin_payout', // Admins manually approve & payout
-      completedAt: new Date()
-    };
 
-    const result = await wagers.insertOne(wagerRecord);
-    console.log(`[Wager] Recorded wager game win for ${winnerWallet} (Prize Pot: ${prizePot} $CTHULHU)`);
-    res.json({ success: true, id: result.insertedId, record: wagerRecord });
+    let updated = false;
+    if (gameId) {
+      const updateRes = await wagers.updateOne(
+        { gameId },
+        {
+          $set: {
+            winnerWallet,
+            winnerFaction: winnerFaction || null,
+            winnerScore: winnerScore || 0,
+            status: 'pending_admin_payout',
+            completedAt: new Date()
+          }
+        }
+      );
+      if (updateRes.matchedCount > 0) updated = true;
+    }
+
+    if (!updated) {
+      const wagerRecord = {
+        gameId: gameId || `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        entryFee: entryFee || 0,
+        prizePot: prizePot || 0,
+        players: players || [],
+        winnerWallet,
+        winnerFaction: winnerFaction || null,
+        winnerScore: winnerScore || 0,
+        status: 'pending_admin_payout',
+        createdAt: new Date(),
+        completedAt: new Date()
+      };
+      await wagers.insertOne(wagerRecord);
+    }
+
+    console.log(`[WagerComplete] Recorded wager game win for ${winnerWallet} (Prize Pot: ${prizePot} $CTHULHU)`);
+    res.json({ success: true });
   } catch (err) {
     console.error('POST /api/wager/record-game error:', err);
     res.status(500).json({ error: 'Failed to record wager game' });
@@ -411,7 +470,7 @@ app.post('/api/wager/record-game', async (req, res) => {
 
 // ============================================================
 // GET /api/wagers
-// Returns full log of all wagered games played.
+// Returns full log of all wagered games played (in progress, pending payout, & paid).
 // Supports filtering by wallet query (?wallet=...).
 // ============================================================
 app.get('/api/wagers', async (req, res) => {
@@ -430,7 +489,7 @@ app.get('/api/wagers', async (req, res) => {
 
     const list = await wagers
       .find(query)
-      .sort({ completedAt: -1 })
+      .sort({ completedAt: -1, createdAt: -1 })
       .limit(limit)
       .toArray();
 

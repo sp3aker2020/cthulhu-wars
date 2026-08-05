@@ -565,13 +565,22 @@ export class ProfilePage {
     table.appendChild(headerRow);
 
     for (const wager of this._wagerLogs) {
-      const date = wager.completedAt ? new Date(wager.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      const rawDate = wager.completedAt || wager.createdAt;
+      const date = rawDate ? new Date(rawDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
       const isMyWin = wager.winnerWallet === myWallet;
-      const shortWinner = wager.winnerWallet ? `${wager.winnerWallet.slice(0, 6)}...${wager.winnerWallet.slice(-4)}` : '—';
+      const shortWinner = wager.winnerWallet ? `${wager.winnerWallet.slice(0, 6)}...${wager.winnerWallet.slice(-4)}` : (wager.status === 'in_progress' ? '⚔️ In Match' : '—');
       const factionName = FACTION_NAMES[wager.winnerFaction] || wager.winnerFaction || '—';
       const factionColor = FACTION_COLORS[wager.winnerFaction] || '#ffd600';
-      const statusText = wager.status === 'paid' ? '✅ Paid' : '⏳ Pending Admin Payout';
-      const statusColor = wager.status === 'paid' ? '#00c853' : '#ffab00';
+      
+      let statusText = '⏳ Pending Admin Payout';
+      let statusColor = '#ffab00';
+      if (wager.status === 'paid') {
+        statusText = '✅ Paid';
+        statusColor = '#00c853';
+      } else if (wager.status === 'in_progress') {
+        statusText = '⚔️ In Progress';
+        statusColor = '#448aff';
+      }
 
       const row = createElement('div', {
         class: `lb-row ${isMyWin ? 'lb-me' : ''}`,
