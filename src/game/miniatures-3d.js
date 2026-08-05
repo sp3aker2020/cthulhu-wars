@@ -254,43 +254,99 @@ export class MiniatureFactory {
   }
 
   _buildCultistMesh(group, mat) {
-    // Robed Body
-    const bodyGeo = new THREE.ConeGeometry(0.48, 1.6, 14);
-    const bodyMesh = new THREE.Mesh(bodyGeo, mat);
-    bodyMesh.position.y = 0.8;
-    bodyMesh.castShadow = true;
-    bodyMesh.receiveShadow = true;
-    group.add(bodyMesh);
+    // 1. Flared Robe Skirt (Outer Cloth Folds)
+    const skirtGeo = new THREE.CylinderGeometry(0.25, 0.65, 1.4, 16);
+    const skirtMesh = new THREE.Mesh(skirtGeo, mat);
+    skirtMesh.position.y = 0.7;
+    skirtMesh.castShadow = true;
+    skirtMesh.receiveShadow = true;
+    group.add(skirtMesh);
 
-    // Hood
-    const hoodGeo = new THREE.SphereGeometry(0.32, 14, 14);
+    // 2. Torso with Robed Belt / Sash
+    const beltGeo = new THREE.TorusGeometry(0.38, 0.08, 8, 16);
+    const beltMesh = new THREE.Mesh(beltGeo, mat);
+    beltMesh.rotation.x = Math.PI / 2;
+    beltMesh.position.y = 1.1;
+    beltMesh.castShadow = true;
+    group.add(beltMesh);
+
+    const torsoGeo = new THREE.CylinderGeometry(0.35, 0.38, 0.9, 14);
+    const torsoMesh = new THREE.Mesh(torsoGeo, mat);
+    torsoMesh.position.y = 1.45;
+    torsoMesh.castShadow = true;
+    group.add(torsoMesh);
+
+    // 3. Flared Shoulder Mantle / Cape
+    const mantleGeo = new THREE.CylinderGeometry(0.48, 0.36, 0.4, 14);
+    const mantleMesh = new THREE.Mesh(mantleGeo, mat);
+    mantleMesh.position.y = 1.8;
+    mantleMesh.castShadow = true;
+    group.add(mantleMesh);
+
+    // 4. Pointed Cultist Hood & Cowl
+    const hoodGeo = new THREE.SphereGeometry(0.34, 16, 16);
+    hoodGeo.scale(0.85, 1.1, 1.15);
     const hoodMesh = new THREE.Mesh(hoodGeo, mat);
-    hoodMesh.position.set(0, 1.52, 0.05);
+    hoodMesh.position.set(0, 2.05, -0.05);
     hoodMesh.castShadow = true;
     group.add(hoodMesh);
 
-    // Unholy Tome held in hands
-    const bookGeo = new THREE.BoxGeometry(0.38, 0.42, 0.14);
+    // Back Pointed Hood Tip
+    const tipGeo = new THREE.ConeGeometry(0.18, 0.6, 10);
+    const tipMesh = new THREE.Mesh(tipGeo, mat);
+    tipMesh.rotation.x = -Math.PI / 3;
+    tipMesh.position.set(0, 2.1, -0.3);
+    tipMesh.castShadow = true;
+    group.add(tipMesh);
+
+    // 5. Outstretched Robed Arms
+    [-1, 1].forEach(side => {
+      const armGeo = new THREE.CylinderGeometry(0.12, 0.18, 0.7, 10);
+      const armMesh = new THREE.Mesh(armGeo, mat);
+      armMesh.position.set(side * 0.32, 1.55, 0.25);
+      armMesh.rotation.z = side * -0.4;
+      armMesh.rotation.x = 0.5;
+      armMesh.castShadow = true;
+      group.add(armMesh);
+    });
+
+    // 6. Held Unholy Tome / Grimoire
+    const bookGeo = new THREE.BoxGeometry(0.45, 0.5, 0.16);
     const bookMesh = new THREE.Mesh(bookGeo, mat);
-    bookMesh.position.set(0, 1.0, 0.35);
-    bookMesh.rotation.x = 0.35;
+    bookMesh.position.set(0, 1.4, 0.42);
+    bookMesh.rotation.x = 0.4;
     bookMesh.castShadow = true;
     group.add(bookMesh);
   }
 
   _buildMonsterMesh(group, mat) {
-    const bodyGeo = new THREE.CylinderGeometry(0.42, 0.58, 1.8, 14);
+    // 1. Sprawling Beast Body
+    const bodyGeo = new THREE.SphereGeometry(0.55, 16, 16);
+    bodyGeo.scale(1.1, 0.85, 1.3);
     const bodyMesh = new THREE.Mesh(bodyGeo, mat);
-    bodyMesh.position.y = 0.9;
+    bodyMesh.position.y = 0.85;
     bodyMesh.castShadow = true;
     bodyMesh.receiveShadow = true;
     group.add(bodyMesh);
 
+    // 2. Tentacle Stalk Head
     const headGeo = new THREE.SphereGeometry(0.4, 14, 14);
     const headMesh = new THREE.Mesh(headGeo, mat);
-    headMesh.position.set(0, 1.7, 0.1);
+    headMesh.position.set(0, 1.55, 0.2);
     headMesh.castShadow = true;
     group.add(headMesh);
+
+    // 3. Face Tentacles
+    for (let i = -2; i <= 2; i++) {
+      const angle = (i / 2) * 0.7;
+      const tentGeo = new THREE.TorusGeometry(0.28, 0.07, 8, 14, Math.PI);
+      const tentMesh = new THREE.Mesh(tentGeo, mat);
+      tentMesh.rotation.y = angle;
+      tentMesh.rotation.x = Math.PI / 2 + 0.3;
+      tentMesh.position.set(Math.sin(angle) * 0.2, 1.35, 0.5);
+      tentMesh.castShadow = true;
+      group.add(tentMesh);
+    }
   }
 
   static faceCameraAll(unitGroup, camera) {
