@@ -256,9 +256,9 @@ app.get('/api/leaderboard', async (req, res) => {
 // ============================================================
 const CTHULHU_TOKEN_MINT = 'ANohyVuF1cPGAVUNaX4wbuXV5ySPiUVwyaS1p3aDpump';
 const SOLANA_RPC_ENDPOINTS = [
+  process.env.SOLANA_RPC_URL || 'https://solana-rpc.publicnode.com',
   'https://api.mainnet-beta.solana.com',
-  'https://rpc.ankr.com/solana',
-  'https://solana-mainnet.g.alchemy.com/v2/demo'
+  'https://rpc.ankr.com/solana'
 ];
 
 app.get('/api/token-balance/:walletAddress', async (req, res) => {
@@ -374,6 +374,36 @@ app.post('/api/wager/payout', async (req, res) => {
     console.error('POST /api/wager/payout error:', err);
     res.status(500).json({ success: false, error: 'Failed to execute payout' });
   }
+});
+
+// ============================================================
+// POST /api/rpc-proxy
+// Generic Solana JSON-RPC proxy to avoid browser CORS/403 errors.
+// ============================================================
+app.post('/api/rpc-proxy', async (req, res) => {
+  const rpcEndpoints = [
+    process.env.SOLANA_RPC_URL || 'https://solana-rpc.publicnode.com',
+    'https://api.mainnet-beta.solana.com',
+    'https://rpc.ankr.com/solana'
+  ];
+
+  for (const endpoint of rpcEndpoints) {
+    try {
+      const rpcRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      if (rpcRes.ok) {
+        const data = await rpcRes.json();
+        return res.json(data);
+      }
+    } catch (err) {
+      console.warn(`RPC Proxy endpoint ${endpoint} failed:`, err.message);
+    }
+  }
+
+  res.status(502).json({ error: 'All Solana RPC proxy endpoints failed' });
 });
 
 // ============================================================

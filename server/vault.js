@@ -15,9 +15,9 @@ const __dirname = path.dirname(__filename);
 export const CTHULHU_TOKEN_MINT = new PublicKey('ANohyVuF1cPGAVUNaX4wbuXV5ySPiUVwyaS1p3aDpump');
 
 const RPC_ENDPOINTS = [
-  process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
-  'https://rpc.ankr.com/solana',
-  'https://solana-mainnet.g.alchemy.com/v2/demo'
+  process.env.SOLANA_RPC_URL || 'https://solana-rpc.publicnode.com',
+  'https://api.mainnet-beta.solana.com',
+  'https://rpc.ankr.com/solana'
 ];
 
 function getConnection() {

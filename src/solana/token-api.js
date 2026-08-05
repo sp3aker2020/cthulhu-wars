@@ -125,7 +125,19 @@ export async function executeWagerTransfer(provider, userWalletAddress, vaultAdd
     TOKEN_PROGRAM_ID 
   } = await import('@solana/spl-token');
 
-  const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+  const rpcUrl = `${API_BASE}/api/rpc-proxy`;
+  const connection = new Connection(rpcUrl, {
+    commitment: 'confirmed',
+    fetch: async (url, options) => {
+      try {
+        const res = await fetch(url, options);
+        if (res.ok) return res;
+      } catch (e) {}
+      // Fallback directly to publicnode if server proxy fails
+      return fetch('https://solana-rpc.publicnode.com', options);
+    }
+  });
+
   const mintPubkey = new PublicKey(CTHULHU_TOKEN_MINT);
   const userPubkey = new PublicKey(userWalletAddress);
   const vaultPubkey = new PublicKey(vaultAddress);
