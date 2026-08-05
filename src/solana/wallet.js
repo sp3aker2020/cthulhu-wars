@@ -129,8 +129,27 @@ export class WalletManager extends EventEmitter {
     }
 
     try {
-      // Authenticate with Privy Twitter OAuth flow
-      const user = await this._privyClient.auth.oauth.loginWithCode({ provider: 'twitter' });
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('privy_oauth_code') || urlParams.get('code');
+      const state = urlParams.get('privy_oauth_state') || urlParams.get('state');
+
+      let user;
+
+      if (code && state) {
+        // Authenticate with Privy OAuth callback
+        user = await this._privyClient.auth.oauth.loginWithCode(code, state, 'twitter');
+        
+        // Clear the URL parameters without refreshing the page
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({path:newUrl}, '', newUrl);
+      } else {
+        // Initiate OAuth flow
+        const { url } = await this._privyClient.auth.oauth.generateURL('twitter', window.location.href);
+        window.location.href = url;
+        // The page will redirect away, so we wait indefinitely
+        return new Promise(() => {});
+      }
+
       this._privyUser = user;
 
       // Extract wallet or generate deterministic user address from Privy user ID
@@ -148,20 +167,10 @@ export class WalletManager extends EventEmitter {
       return user;
     } catch (err) {
       console.error('Privy Twitter login error:', err);
-      // Fallback: create session with Twitter handle prompt if OAuth popup is blocked
-      const handle = prompt('Enter your 𝕏 (Twitter) handle (e.g. @sp3aker2020):');
-      if (handle) {
-        const cleanHandle = handle.replace('@', '').trim();
-        const fakeAddr = `SOL_X_${cleanHandle}`;
-        this._publicKey = fakeAddr;
-        this._walletId = 'privy_twitter';
-        this._walletName = `@${cleanHandle}`;
-
-        localStorage.setItem('cw_lastWallet', 'privy_twitter');
-        this.emit('connected', this._publicKey);
-      } else {
-        throw err;
-      }
+      // Clean up the URL on failure just in case
+      const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+      window.history.replaceState({path:newUrl}, '', newUrl);
+      throw err;
     }
   }
 
@@ -257,6 +266,20 @@ export class WalletManager extends EventEmitter {
    * Tries to reconnect from stored local state.
    */
   async tryReconnect() {
+    // Intercept Privy OAuth callback on load
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('privy_oauth_code') || urlParams.get('code');
+    const state = urlParams.get('privy_oauth_state') || urlParams.get('state');
+
+    if (code && state) {
+      try {
+        await this._connectPrivyTwitter();
+        return;
+      } catch (err) {
+        console.error('OAuth reconnect failed', err);
+      }
+    }
+
     const lastWallet = localStorage.getItem('cw_lastWallet');
     if (lastWallet === 'privy_twitter') {
       try {
