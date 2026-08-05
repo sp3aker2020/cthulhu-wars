@@ -88,31 +88,36 @@ export class SetupScreen {
 
   _renderWalletSection(screen) {
     const section = createElement('div', { class: 'wallet-section glass' });
-    section.appendChild(createElement('h3', { style: 'margin-bottom:8px;text-align:center' }, ['Sign In with Privy']));
-    section.appendChild(createElement('p', { style: 'margin-bottom:20px;text-align:center;color:#888;font-size:0.88rem' }, ['Links your 𝕏 (Twitter) account and Solana wallet under one profile']));
-
-    // Exclusive Privy Auth Button (𝕏 Twitter + Solana Wallets)
-    const privyBtn = createElement('button', {
-      class: 'wallet-btn privy-btn',
-      style: 'background:linear-gradient(135deg, #6366f1, #4f46e5);color:white;font-weight:bold;justify-content:center;padding:16px;font-size:1.1rem;margin-bottom:16px;box-shadow:0 0 24px rgba(99,102,241,0.5)',
-      click: async () => {
-        try {
-          await this.wallet.connect('privy');
-        } catch (err) {
-          privyBtn.textContent = err.message || 'Connection failed';
-          setTimeout(() => this.render(), 2000);
+    section.appendChild(createElement('h3', { style: 'margin-bottom:16px;text-align:center' }, ['Connect Wallet to Play']));
+    
+    const wallets = this.wallet.getAvailableWallets();
+    for (const w of wallets) {
+      const isPrivy = w.id === 'privy_twitter';
+      const btn = createElement('button', {
+        class: `wallet-btn ${w.id}`,
+        style: isPrivy 
+          ? 'background:linear-gradient(135deg, #6366f1, #4f46e5);color:white;font-weight:bold;margin-bottom:16px;box-shadow:0 0 24px rgba(99,102,241,0.5)'
+          : '',
+        click: async () => {
+          try {
+            await this.wallet.connect(w.id);
+          } catch (err) {
+            btn.textContent = err.message || 'Connection failed';
+            setTimeout(() => this.render(), 2000);
+          }
         }
-      }
-    }, [
-      createElement('span', { class: 'wallet-icon' }, ['🔐']),
-      createElement('span', { class: 'wallet-name', style: 'text-align:center' }, ['Sign In with Privy (𝕏 + Solana)']),
-    ]);
-    section.appendChild(privyBtn);
+      }, [
+        createElement('span', { class: 'wallet-icon' }, [w.icon]),
+        createElement('span', { class: 'wallet-name', style: isPrivy ? 'flex-grow:1;text-align:center' : '' }, [w.name]),
+        ...(!isPrivy ? [createElement('span', { class: 'wallet-status' }, [w.detected ? 'Detected' : 'Not installed'])] : []),
+      ]);
+      section.appendChild(btn);
+    }
 
     // Dev mode: quick play
     const devBtn = createElement('button', {
       class: 'wallet-btn start-btn',
-      style: 'margin-top:12px;background:rgba(255,255,255,0.06);color:#888;border:1px solid rgba(255,255,255,0.1);justify-content:center',
+      style: 'margin-top:20px;background:rgba(255,255,255,0.06);color:#888;border:1px solid rgba(255,255,255,0.1);justify-content:center',
       click: () => {
         this.wallet._publicKey = 'DEV_' + Math.random().toString(36).substring(2, 8);
         this.wallet._walletName = 'Quick Play';
