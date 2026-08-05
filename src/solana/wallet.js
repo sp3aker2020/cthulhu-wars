@@ -1,5 +1,5 @@
 import EventEmitter from '../utils/events.js';
-import { create as createPrivy } from '@privy-io/js-sdk-core';
+import Privy from '@privy-io/js-sdk-core';
 
 export const PRIVY_APP_ID = 'cmmo6f3ai00c10clbwugdvqpo';
 
@@ -26,7 +26,7 @@ export class WalletManager extends EventEmitter {
   _initPrivy() {
     try {
       if (typeof window !== 'undefined') {
-        this._privyClient = createPrivy({ appId: PRIVY_APP_ID });
+        this._privyClient = new Privy({ appId: PRIVY_APP_ID });
       }
     } catch (err) {
       console.warn('Privy initialization warning:', err);
