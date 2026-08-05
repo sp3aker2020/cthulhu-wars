@@ -2,6 +2,7 @@ services:
   - type: web
     name: cthulhu-wars
     env: static
+    plan: free
     buildCommand: npm run build
     staticPublishPath: ./dist
     routes:
