@@ -249,6 +249,86 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ============================================================
+// GET /api/token-balance/:walletAddress
+// Fetches on-chain $CTHULHU token balance via Solana RPC.
+// Server-side proxy to avoid browser CORS/rate-limit issues.
+// ============================================================
+const CTHULHU_TOKEN_MINT = 'ANohyVuF1cPGAVUNaX4wbuXV5ySPiUVwyaS1p3aDpump';
+const SOLANA_RPC_ENDPOINTS = [
+  'https://api.mainnet-beta.solana.com',
+  'https://rpc.ankr.com/solana',
+  'https://solana-mainnet.g.alchemy.com/v2/demo'
+];
+
+app.get('/api/token-balance/:walletAddress', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+
+    if (!walletAddress || walletAddress.startsWith('DEV_') || walletAddress.startsWith('SOL_')) {
+      return res.json({ balance: null, source: 'synthetic' });
+    }
+
+    for (const endpoint of SOLANA_RPC_ENDPOINTS) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
+        const rpcRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getTokenAccountsByOwner',
+            params: [
+              walletAddress,
+              { mint: CTHULHU_TOKEN_MINT },
+              { encoding: 'jsonParsed', commitment: 'confirmed' }
+            ]
+          })
+        });
+
+        clearTimeout(timeout);
+
+        if (!rpcRes.ok) continue;
+
+        const data = await rpcRes.json();
+
+        if (data.error) {
+          console.warn(`RPC error from ${endpoint}:`, data.error);
+          continue;
+        }
+
+        if (data?.result?.value) {
+          if (data.result.value.length === 0) {
+            return res.json({ balance: 0, source: endpoint });
+          }
+
+          let totalBalance = 0;
+          for (const account of data.result.value) {
+            const tokenAmount = account?.account?.data?.parsed?.info?.tokenAmount;
+            if (tokenAmount && typeof tokenAmount.uiAmount === 'number') {
+              totalBalance += tokenAmount.uiAmount;
+            }
+          }
+
+          console.log(`[TokenBalance] ${walletAddress.slice(0,8)}... = ${totalBalance} $CTHULHU (via ${endpoint})`);
+          return res.json({ balance: totalBalance, source: endpoint });
+        }
+      } catch (err) {
+        console.warn(`RPC ${endpoint} failed:`, err.message);
+      }
+    }
+
+    res.json({ balance: null, error: 'All RPC endpoints failed' });
+  } catch (err) {
+    console.error('GET /api/token-balance error:', err);
+    res.status(500).json({ error: 'Failed to fetch token balance' });
+  }
+});
+
+// ============================================================
 // Graceful Shutdown
 // ============================================================
 process.on('SIGINT', async () => {
