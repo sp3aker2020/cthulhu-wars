@@ -74,16 +74,31 @@
   "accounts": [
     {
       "name": "RollAccount",
-      "discriminator": [
-        208,
-        114,
-        12,
-        249,
-        224,
-        107,
-        235,
-        117
-      ]
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "game_id",
+            "type": "string"
+          },
+          {
+            "name": "combat_id",
+            "type": "string"
+          },
+          {
+            "name": "num_dice",
+            "type": "u8"
+          },
+          {
+            "name": "roller",
+            "type": "pubkey"
+          },
+          {
+            "name": "results",
+            "type": "bytes"
+          }
+        ]
+      }
     }
   ],
   "types": [
