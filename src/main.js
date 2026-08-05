@@ -5,9 +5,11 @@ import { CombatEngine } from './game/combat.js';
 import { DiceRenderer } from './game/dice-renderer.js';
 import { UIController } from './ui/ui-controller.js';
 import { SetupScreen } from './ui/setup-screen.js';
+import { ProfilePage } from './ui/profile-page.js';
 import { WalletManager } from './solana/wallet.js';
 import { PlayerStore } from './solana/player-store.js';
 import { LobbyManager } from './solana/lobby.js';
+import * as ProfileAPI from './db/profile-api.js';
 import { runGatherPower } from './game/phases/gather-power.js';
 import { runFirstPlayer } from './game/phases/first-player.js';
 import { runActionPhase } from './game/phases/action-phase.js';
@@ -25,6 +27,7 @@ class CthulhuWarsApp {
     this.diceRenderer = null;
     this.uiController = null;
     this.is3DMode = false;
+    this.profilePage = new ProfilePage(this.wallet);
   }
 
   async init() {
@@ -126,12 +129,28 @@ class CthulhuWarsApp {
     for (const result of results) {
       const player = this.gameState.getPlayer(result.playerIndex);
       if (player.walletAddress && !player.walletAddress.startsWith('DEV')) {
+        // Local storage fallback
         this.playerStore.recordGameResult(player.walletAddress, {
           factionId: result.factionId,
           doom: result.finalDoom,
           won: result.winner,
           elderSignTotal: result.elderSignTotal,
         });
+
+        // Record to MongoDB API
+        const opponentFactions = results
+          .filter(r => r.playerIndex !== result.playerIndex)
+          .map(r => r.factionId);
+
+        ProfileAPI.recordGame(player.walletAddress, {
+          factionId: result.factionId,
+          doomScore: result.finalDoom,
+          elderSigns: result.elderSignTotal || 0,
+          won: result.winner,
+          opponentFactions,
+          playerCount: results.length,
+          roundsPlayed: this.gameState.state.round
+        }).catch(err => console.warn('Failed to record game to API:', err));
       }
     }
   }

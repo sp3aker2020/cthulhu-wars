@@ -1,0 +1,268 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import { getProfiles, getMatches, closeDB } from './db.js';
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
+
+// ============================================================
+// Health Check
+// ============================================================
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ============================================================
+// GET /api/profile/:walletAddress
+// Fetch a player profile. Creates one if it doesn't exist.
+// ============================================================
+app.get('/api/profile/:walletAddress', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    const profiles = await getProfiles();
+
+    let profile = await profiles.findOne({ _id: walletAddress });
+
+    if (!profile) {
+      const shortAddr = `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`;
+      profile = {
+        _id: walletAddress,
+        walletAddress,
+        displayName: shortAddr,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        totalDoomScored: 0,
+        highestDoom: 0,
+        favoriteFaction: null,
+        factionStats: {
+          cthulhu: { played: 0, wins: 0 },
+          crawling_chaos: { played: 0, wins: 0 },
+          yellow_sign: { played: 0, wins: 0 },
+          black_goat: { played: 0, wins: 0 }
+        },
+        createdAt: new Date(),
+        lastPlayed: null
+      };
+      await profiles.insertOne(profile);
+    }
+
+    res.json(profile);
+  } catch (err) {
+    console.error('GET /api/profile error:', err);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// ============================================================
+// PUT /api/profile/:walletAddress
+// Update display name.
+// ============================================================
+app.put('/api/profile/:walletAddress', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    const { displayName } = req.body;
+
+    if (!displayName || typeof displayName !== 'string' || displayName.trim().length === 0) {
+      return res.status(400).json({ error: 'displayName is required' });
+    }
+
+    const profiles = await getProfiles();
+
+    // Ensure profile exists
+    const exists = await profiles.findOne({ _id: walletAddress });
+    if (!exists) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    await profiles.updateOne(
+      { _id: walletAddress },
+      { $set: { displayName: displayName.trim().slice(0, 32) } }
+    );
+
+    const updated = await profiles.findOne({ _id: walletAddress });
+    res.json(updated);
+  } catch (err) {
+    console.error('PUT /api/profile error:', err);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// ============================================================
+// POST /api/profile/:walletAddress/game
+// Record a game result. Increments stats + saves match record.
+// ============================================================
+app.post('/api/profile/:walletAddress/game', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    const { factionId, doomScore, elderSigns, won, opponentFactions, playerCount, roundsPlayed } = req.body;
+
+    if (!factionId || doomScore === undefined || won === undefined) {
+      return res.status(400).json({ error: 'factionId, doomScore, and won are required' });
+    }
+
+    const profiles = await getProfiles();
+    const matches = await getMatches();
+
+    // Ensure profile exists
+    let profile = await profiles.findOne({ _id: walletAddress });
+    if (!profile) {
+      // Auto-create
+      const shortAddr = `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`;
+      profile = {
+        _id: walletAddress,
+        walletAddress,
+        displayName: shortAddr,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        totalDoomScored: 0,
+        highestDoom: 0,
+        favoriteFaction: null,
+        factionStats: {
+          cthulhu: { played: 0, wins: 0 },
+          crawling_chaos: { played: 0, wins: 0 },
+          yellow_sign: { played: 0, wins: 0 },
+          black_goat: { played: 0, wins: 0 }
+        },
+        createdAt: new Date(),
+        lastPlayed: null
+      };
+      await profiles.insertOne(profile);
+    }
+
+    // Update aggregate stats
+    const totalDoom = (doomScore || 0) + (elderSigns || 0);
+    const factionKey = `factionStats.${factionId}`;
+
+    const updateOps = {
+      $inc: {
+        gamesPlayed: 1,
+        wins: won ? 1 : 0,
+        losses: won ? 0 : 1,
+        totalDoomScored: totalDoom,
+        [`${factionKey}.played`]: 1,
+        [`${factionKey}.wins`]: won ? 1 : 0
+      },
+      $set: {
+        lastPlayed: new Date()
+      }
+    };
+
+    // Update highest doom if beaten
+    if (doomScore > (profile.highestDoom || 0)) {
+      updateOps.$set.highestDoom = doomScore;
+    }
+
+    await profiles.updateOne({ _id: walletAddress }, updateOps);
+
+    // Recalculate favorite faction
+    const updatedProfile = await profiles.findOne({ _id: walletAddress });
+    let maxPlays = -1;
+    let fav = null;
+    for (const [fac, data] of Object.entries(updatedProfile.factionStats || {})) {
+      if (data.played > maxPlays) {
+        maxPlays = data.played;
+        fav = fac;
+      }
+    }
+    await profiles.updateOne({ _id: walletAddress }, { $set: { favoriteFaction: fav } });
+
+    // Save match record
+    const matchRecord = {
+      walletAddress,
+      factionId,
+      doomScore: doomScore || 0,
+      elderSigns: elderSigns || 0,
+      won: !!won,
+      opponentFactions: opponentFactions || [],
+      playerCount: playerCount || 2,
+      roundsPlayed: roundsPlayed || 0,
+      playedAt: new Date()
+    };
+    await matches.insertOne(matchRecord);
+
+    res.json({ success: true, profile: await profiles.findOne({ _id: walletAddress }) });
+  } catch (err) {
+    console.error('POST /api/profile/game error:', err);
+    res.status(500).json({ error: 'Failed to record game' });
+  }
+});
+
+// ============================================================
+// GET /api/profile/:walletAddress/history
+// Get recent match history for a player.
+// ============================================================
+app.get('/api/profile/:walletAddress/history', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const matches = await getMatches();
+
+    const history = await matches
+      .find({ walletAddress })
+      .sort({ playedAt: -1 })
+      .limit(limit)
+      .toArray();
+
+    res.json(history);
+  } catch (err) {
+    console.error('GET /api/profile/history error:', err);
+    res.status(500).json({ error: 'Failed to fetch match history' });
+  }
+});
+
+// ============================================================
+// GET /api/leaderboard
+// Top players ranked by wins. Shows display name + wallet.
+// ============================================================
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
+    const profiles = await getProfiles();
+
+    const leaderboard = await profiles
+      .find({ gamesPlayed: { $gt: 0 } })
+      .sort({ wins: -1, gamesPlayed: 1 })
+      .limit(limit)
+      .project({
+        _id: 1,
+        walletAddress: 1,
+        displayName: 1,
+        gamesPlayed: 1,
+        wins: 1,
+        losses: 1,
+        highestDoom: 1,
+        favoriteFaction: 1
+      })
+      .toArray();
+
+    res.json(leaderboard);
+  } catch (err) {
+    console.error('GET /api/leaderboard error:', err);
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+});
+
+// ============================================================
+// Graceful Shutdown
+// ============================================================
+process.on('SIGINT', async () => {
+  await closeDB();
+  process.exit(0);
+});
+process.on('SIGTERM', async () => {
+  await closeDB();
+  process.exit(0);
+});
+
+// ============================================================
+// Start Server
+// ============================================================
+app.listen(PORT, () => {
+  console.log(`Cthulhu Wars API running on port ${PORT}`);
+});

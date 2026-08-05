@@ -1,11 +1,13 @@
 import { $, createElement, show, hide, addClass, removeClass } from '../utils/dom.js';
 import { FACTIONS } from '../game/constants.js';
+import { ProfilePage } from './profile-page.js';
 
 export class SetupScreen {
   constructor(walletManager, playerStore, lobbyManager) {
     this.wallet = walletManager;
     this.store = playerStore;
     this.lobby = lobbyManager;
+    this.profilePage = new ProfilePage(walletManager);
     this._startResolver = null;
     this._currentStep = 'wallet';  // 'wallet' | 'lobby'
   }
@@ -186,13 +188,24 @@ export class SetupScreen {
       section.appendChild(slotEl);
     }
     
-    // Player stats
+    // Player stats + Profile button
     if (this.wallet.isConnected()) {
       const profile = this.store.getProfile(this.wallet.getPublicKey());
-      const stats = createElement('div', { style: 'margin-top:16px;text-align:center;opacity:0.6;font-size:0.85rem' }, [
+      const profileRow = createElement('div', { style: 'margin-top:16px;display:flex;align-items:center;justify-content:center;gap:16px' });
+
+      const stats = createElement('span', { style: 'opacity:0.6;font-size:0.85rem' }, [
         `${profile.stats.gamesPlayed} games played | ${profile.stats.wins} wins`
       ]);
-      section.appendChild(stats);
+      profileRow.appendChild(stats);
+
+      const profileBtn = createElement('button', {
+        class: 'btn',
+        style: 'background:rgba(68,138,255,0.15);color:#448aff;border-color:#448aff40;padding:6px 16px;font-size:0.85rem;cursor:pointer',
+        click: () => this.profilePage.show()
+      }, ['👤 Profile']);
+      profileRow.appendChild(profileBtn);
+
+      section.appendChild(profileRow);
     }
     
     // Start button

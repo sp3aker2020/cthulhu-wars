@@ -1,0 +1,495 @@
+/* ============================================================
+   Profile Page Styles
+   ============================================================ */
+
+#profile-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(5, 5, 15, 0.97);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+}
+
+.profile-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #aaa;
+  font-size: 1.1rem;
+  gap: 16px;
+}
+
+.profile-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #333;
+  border-top-color: #448aff;
+  border-radius: 50%;
+  animation: profile-spin 0.8s linear infinite;
+}
+
+@keyframes profile-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Wrapper ─── */
+.profile-wrapper {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+/* ─── Header ─── */
+.profile-header {
+  padding: 24px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.profile-back-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #aaa;
+  padding: 6px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.profile-back-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  font-family: 'Cinzel', serif;
+}
+
+.profile-name-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-display-name {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-size: 1.6rem;
+  color: #fff;
+  font-weight: 700;
+}
+
+.profile-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  padding: 4px;
+}
+
+.profile-edit-btn:hover {
+  opacity: 1;
+}
+
+.profile-wallet-addr {
+  font-size: 0.78rem;
+  color: #7a7a9a;
+  margin-top: 4px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.profile-since {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 4px;
+}
+
+/* ─── Tabs ─── */
+.profile-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.profile-tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: #777;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.25s;
+  font-family: 'Inter', sans-serif;
+}
+
+.profile-tab:hover {
+  color: #bbb;
+  background: rgba(255,255,255,0.04);
+}
+
+.profile-tab.active {
+  color: #fff;
+  background: rgba(68, 138, 255, 0.15);
+  box-shadow: 0 0 12px rgba(68, 138, 255, 0.1);
+}
+
+/* ─── Stats Grid ─── */
+.profile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.profile-stat-card {
+  padding: 20px 16px;
+  border-radius: 14px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.profile-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.stat-icon {
+  font-size: 1.6rem;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: #777;
+  margin-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Faction Breakdown ─── */
+.profile-section {
+  margin-bottom: 24px;
+}
+
+.profile-section-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  color: #ccc;
+  margin-bottom: 12px;
+}
+
+.faction-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.faction-stat-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.faction-stat-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.faction-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.faction-wr-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.faction-wr-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+/* ─── Match History ─── */
+.match-history-table {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.match-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 60px 60px 60px;
+  gap: 8px;
+  padding: 10px 16px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.85rem;
+}
+
+.match-header {
+  background: rgba(255,255,255,0.04);
+  color: #777;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.match-win {
+  border-left: 3px solid #00c853;
+}
+
+.match-loss {
+  border-left: 3px solid #ff1744;
+}
+
+.match-cell {
+  color: #bbb;
+}
+
+.match-result-badge {
+  font-weight: 700;
+  font-size: 0.8rem;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.match-result-badge.win {
+  background: rgba(0, 200, 83, 0.15);
+  color: #00c853;
+  box-shadow: 0 0 8px rgba(0, 200, 83, 0.2);
+}
+
+.match-result-badge.loss {
+  background: rgba(255, 23, 68, 0.15);
+  color: #ff1744;
+  box-shadow: 0 0 8px rgba(255, 23, 68, 0.2);
+}
+
+/* ─── Leaderboard ─── */
+.leaderboard-table {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.lb-row {
+  display: grid;
+  grid-template-columns: 50px 1fr 100px 50px 50px 60px 70px;
+  gap: 6px;
+  padding: 10px 16px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+
+.lb-row:hover:not(.lb-header) {
+  background: rgba(255,255,255,0.03);
+}
+
+.lb-header {
+  background: rgba(255,255,255,0.04);
+  color: #777;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lb-me {
+  background: rgba(68, 138, 255, 0.08);
+  border-left: 3px solid #448aff;
+}
+
+.lb-rank {
+  font-size: 1rem;
+  text-align: center;
+}
+
+.lb-name {
+  color: #ddd;
+  font-weight: 500;
+}
+
+.lb-wallet {
+  color: #666;
+  font-size: 0.75rem;
+}
+
+.lb-cell {
+  color: #bbb;
+}
+
+/* ─── Empty State ─── */
+.profile-empty {
+  text-align: center;
+  color: #555;
+  padding: 40px 20px;
+  font-size: 0.95rem;
+}
+
+/* ─── Edit Name Modal ─── */
+.profile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: profile-fade-in 0.2s ease;
+}
+
+@keyframes profile-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.profile-modal {
+  padding: 28px;
+  border-radius: 16px;
+  min-width: 340px;
+  max-width: 420px;
+}
+
+.profile-modal h3 {
+  margin: 0 0 16px;
+  font-family: 'Cinzel', serif;
+  color: #ddd;
+}
+
+.profile-name-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  transition: border-color 0.2s;
+}
+
+.profile-name-input:focus {
+  border-color: #448aff;
+}
+
+.profile-modal-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.profile-modal-btns .btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .profile-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .faction-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lb-row {
+    grid-template-columns: 40px 1fr 50px 50px 60px;
+    font-size: 0.78rem;
+  }
+
+  .lb-wallet {
+    display: none;
+  }
+
+  /* Hide Best Doom column on mobile */
+  .lb-row > .lb-cell:nth-child(7) {
+    display: none;
+  }
+
+  .match-row {
+    grid-template-columns: 60px 1fr 50px 40px 40px;
+    font-size: 0.78rem;
+  }
+
+  .profile-identity {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .profile-name-row {
+    justify-content: center;
+  }
+
+  .profile-wallet-addr {
+    text-align: center;
+  }
+}
