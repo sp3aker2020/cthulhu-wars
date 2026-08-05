@@ -39,7 +39,22 @@ export class ProfilePage {
     container.innerHTML = '<div class="profile-loading"><div class="profile-spinner"></div><p>Loading profile...</p></div>';
     container.style.display = 'block';
 
-    // Fetch data in parallel
+    await this._fetchProfileData();
+    this.render();
+  }
+
+  /**
+   * Render profile page inline in a custom container.
+   */
+  async showInContainer(container) {
+    if (!container) return;
+    container.innerHTML = '<div class="profile-loading" style="height:300px;"><div class="profile-spinner"></div><p>Loading profile...</p></div>';
+    
+    await this._fetchProfileData();
+    this.renderToContainer(container);
+  }
+
+  async _fetchProfileData() {
     const walletAddr = this.wallet.getPublicKey();
     
     // Sync on-chain balance first
@@ -62,7 +77,6 @@ export class ProfilePage {
 
     this._profile = profile || {};
     
-    // Use on-chain balance if available, otherwise fall back to store profile
     if (this._onChainBalance !== null) {
       this._profile.onChainBalance = this._onChainBalance;
     } else if (walletAddr && this.store) {
@@ -73,8 +87,6 @@ export class ProfilePage {
     this._history = history || [];
     this._leaderboard = leaderboard || [];
     this._wagerLogs = wagerLogs || [];
-
-    this.render();
   }
 
   /**
@@ -93,6 +105,11 @@ export class ProfilePage {
    */
   render() {
     const container = $('#profile-page');
+    if (!container) return;
+    this.renderToContainer(container);
+  }
+
+  renderToContainer(container) {
     if (!container) return;
     container.innerHTML = '';
 

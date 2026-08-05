@@ -1,5 +1,7 @@
-import { $, createElement, show, hide, addClass, removeClass } from '../utils/dom.js';
-import { FACTIONS } from '../game/constants.js';
+import { $, createElement, show, hide } from '../utils/dom.js';
+import { FACTIONS, MAP_REGIONS } from '../game/constants.js';
+import { GameState } from '../game/game-state.js';
+import { MapRenderer } from '../game/map-renderer.js';
 import { ProfilePage } from './profile-page.js';
 import * as ProfileAPI from '../db/profile-api.js';
 import { executeWagerTransfer } from '../solana/token-api.js';
@@ -12,6 +14,12 @@ export class SetupScreen {
     this.profilePage = new ProfilePage(walletManager, playerStore);
     this._startResolver = null;
     this._currentStep = 'wallet';  // 'wallet' | 'lobby'
+    this._activeNavTab = 'lobby'; // 'lobby' | 'map' | 'logs' | 'profile'
+    this._logsSubTab = 'wagers';  // 'wagers' | 'leaderboard'
+    this._selectedRegionId = null;
+    this._previewMapRenderer = null;
+    this._wagerLogsData = [];
+    this._leaderboardData = [];
   }
 
   async show() {
@@ -80,23 +88,165 @@ export class SetupScreen {
     }
     
     screen.innerHTML = '';
-    
-    // Title
-    screen.appendChild(createElement('h1', { class: 'game-title' }, ['CTHULHU WARS']));
-    screen.appendChild(createElement('div', { class: 'game-subtitle' }, ['THE STARS ARE RIGHT']));
-    
-    if (this._currentStep === 'wallet') {
-      this._renderWalletSection(screen);
-    } else {
-      this._renderWalletBadge(screen);
-      this._renderLobbySection(screen);
+
+    // 1. Top Header Navigation Bar
+    screen.appendChild(this._renderHeader());
+
+    // 2. Landing Main Content Container
+    const content = createElement('div', { class: 'landing-content' });
+
+    if (this._activeNavTab === 'lobby') {
+      content.appendChild(this._renderLobbyTab());
+    } else if (this._activeNavTab === 'map') {
+      content.appendChild(this._renderMapPreviewTab());
+    } else if (this._activeNavTab === 'logs') {
+      content.appendChild(this._renderLogsTab());
+    } else if (this._activeNavTab === 'profile') {
+      content.appendChild(this._renderProfileTab());
+    }
+
+    screen.appendChild(content);
+
+    // 3. Post-render initializations
+    if (this._activeNavTab === 'map') {
+      setTimeout(() => this._initMapPreview(), 50);
+    } else if (this._activeNavTab === 'profile') {
+      const pContainer = $('#landing-profile-container');
+      if (pContainer) {
+        this.profilePage.showInContainer(pContainer);
+      }
     }
   }
 
-  _renderWalletSection(screen) {
-    const section = createElement('div', { class: 'wallet-section glass' });
-    section.appendChild(createElement('h3', { style: 'margin-bottom:16px;text-align:center' }, ['Connect Wallet to Play']));
-    
+  // ================================================================
+  // Top Header Navigation Bar
+  // ================================================================
+  _renderHeader() {
+    const header = createElement('header', { class: 'landing-header' });
+
+    // Brand / Logo
+    const brand = createElement('div', {
+      class: 'landing-brand',
+      click: () => {
+        this._activeNavTab = 'lobby';
+        this.render();
+      }
+    }, [
+      createElement('span', { class: 'landing-logo-icon' }, ['🦑']),
+      createElement('div', {}, [
+        createElement('h1', { class: 'landing-title' }, ['CTHULHU WARS']),
+        createElement('div', { style: 'font-size:0.65rem;color:#94a3b8;letter-spacing:2px;' }, ['THE STARS ARE RIGHT'])
+      ])
+    ]);
+    header.appendChild(brand);
+
+    // Navigation Tabs
+    const tabs = [
+      { id: 'lobby', label: '🎮 Game Lobby' },
+      { id: 'map', label: '🗺️ Map Preview' },
+      { id: 'logs', label: '📜 Game & Wager Logs' },
+      { id: 'profile', label: '👤 My Profile' }
+    ];
+
+    const nav = createElement('nav', { class: 'landing-nav-tabs' });
+    for (const t of tabs) {
+      const active = this._activeNavTab === t.id;
+      const btn = createElement('button', {
+        class: `landing-nav-btn ${active ? 'active' : ''}`,
+        click: () => {
+          this._activeNavTab = t.id;
+          this.render();
+        }
+      }, [t.label]);
+      nav.appendChild(btn);
+    }
+    header.appendChild(nav);
+
+    // Right side: Wallet status / Connect button
+    const pubkey = this.wallet.getPublicKey();
+    if (pubkey) {
+      const profile = this.store.getProfile(pubkey);
+      const bal = profile ? (profile.balance || 0) : 0;
+      const isRealWallet = pubkey && !pubkey.startsWith('DEV_') && !pubkey.startsWith('SOL_');
+      const isVerified = profile?._balanceVerified === true;
+      const balLabel = isRealWallet ? (isVerified ? 'On-Chain ✓' : 'On-Chain ⏳') : 'In-Game';
+      const balColor = isRealWallet ? '#00e676' : '#ffd600';
+
+      const walletBadge = createElement('div', {
+        class: 'wallet-badge glass',
+        style: 'display:flex;align-items:center;gap:10px;padding:6px 14px;border-radius:20px;'
+      }, [
+        createElement('span', { style: `color:${balColor};font-weight:bold;font-size:0.9rem;` }, [`🪙 ${bal.toLocaleString()} $CTHULHU`]),
+        createElement('span', { style: `font-size:0.65rem;color:${balColor};opacity:0.8;` }, [`(${balLabel})`]),
+        createElement('span', { style: 'opacity:0.3;' }, ['|']),
+        createElement('span', { class: 'wallet-dot' }),
+        createElement('span', { class: 'mono', style: 'font-size:0.85rem;' }, [this.wallet.getShortAddress()]),
+        createElement('span', {
+          class: 'disconnect-btn',
+          style: 'font-size:0.75rem;cursor:pointer;color:#ff5252;margin-left:4px;',
+          click: () => this.wallet.disconnect()
+        }, ['Disconnect'])
+      ]);
+      header.appendChild(walletBadge);
+    } else {
+      const connectBtn = createElement('button', {
+        class: 'btn',
+        style: 'background:linear-gradient(135deg,#00e676,#00a844);color:#000;font-weight:bold;padding:8px 18px;border-radius:20px;font-size:0.88rem;',
+        click: () => {
+          this._activeNavTab = 'lobby';
+          this.render();
+        }
+      }, ['⚡ Connect Wallet']);
+      header.appendChild(connectBtn);
+    }
+
+    return header;
+  }
+
+  // ================================================================
+  // Tab 1: Game Lobby Tab
+  // ================================================================
+  _renderLobbyTab() {
+    const wrapper = createElement('div');
+
+    // Hero Banner
+    const hero = createElement('div', { class: 'landing-hero' }, [
+      createElement('h2', {}, ['THE STARS ARE RIGHT']),
+      createElement('p', {}, ['DOMINATE EARTH IN ASYMMETRIC COSMIC WARFARE WITH SOLANA TOKEN WAGERS']),
+      createElement('div', { class: 'landing-badges' }, [
+        createElement('span', { class: 'landing-badge-item' }, ['🦑 4 Asymmetric Factions']),
+        createElement('span', { class: 'landing-badge-item' }, ['🪙 On-Chain Escrow Vault']),
+        createElement('span', { class: 'landing-badge-item' }, ['📜 Verified Wager Claims']),
+        createElement('span', { class: 'landing-badge-item' }, ['🗺️ 2D & 3D Earth Maps'])
+      ])
+    ]);
+    wrapper.appendChild(hero);
+
+    // 2-Column Grid: Wallet Connect / Status (Left) & Lobby Setup (Right)
+    const grid = createElement('div', { class: 'landing-grid' });
+
+    // Left Column
+    const leftCol = createElement('div');
+    if (!this.wallet.isConnected()) {
+      leftCol.appendChild(this._renderWalletConnectBox());
+    } else {
+      leftCol.appendChild(this._renderConnectedWalletBox());
+    }
+    grid.appendChild(leftCol);
+
+    // Right Column: Match Setup Lobby
+    const rightCol = createElement('div');
+    rightCol.appendChild(this._renderLobbyConfigBox());
+    grid.appendChild(rightCol);
+
+    wrapper.appendChild(grid);
+    return wrapper;
+  }
+
+  _renderWalletConnectBox() {
+    const section = createElement('div', { class: 'wallet-section glass', style: 'width:100%;min-width:0;' });
+    section.appendChild(createElement('h3', { style: 'margin-bottom:16px;text-align:center;font-family:"Cinzel",serif;color:#00e676;' }, ['Connect Wallet to Play']));
+
     const wallets = this.wallet.getAvailableWallets();
     for (const w of wallets) {
       const isPrivy = w.id === 'privy_twitter';
@@ -140,32 +290,51 @@ export class SetupScreen {
       createElement('span', { class: 'wallet-name', style: 'text-align:center' }, ['Quick Play (Local Game)']),
     ]);
     section.appendChild(devBtn);
-    
-    screen.appendChild(section);
+
+    return section;
   }
 
-  _renderWalletBadge(screen) {
+  _renderConnectedWalletBox() {
     const pubkey = this.wallet.getPublicKey();
-    const profile = pubkey ? this.store.getProfile(pubkey) : null;
-    const bal = profile ? (profile.balance || 0) : 0;
-    const isRealWallet = pubkey && !pubkey.startsWith('DEV_') && !pubkey.startsWith('SOL_');
-    const isVerified = profile?._balanceVerified === true;
-    const balLabel = isRealWallet ? (isVerified ? 'On-Chain ✓' : 'On-Chain ⏳') : 'In-Game';
-    const balColor = isRealWallet ? '#00e676' : '#ffd600';
+    const profile = this.store.getProfile(pubkey);
+    const box = createElement('div', { class: 'glass', style: 'padding:24px;border-radius:14px;border:1px solid rgba(0,230,118,0.3);' });
 
-    const badge = createElement('div', { class: 'wallet-badge glass', style: 'display:flex;align-items:center;gap:12px;' }, [
-      createElement('span', { class: 'token-balance', style: `color:${balColor};font-weight:bold;` }, [`🪙 ${bal.toLocaleString()} $CTHULHU`]),
-      createElement('span', { style: 'font-size:0.65rem;opacity:0.6;color:' + balColor }, [`(${balLabel})`]),
-      createElement('span', { style: 'opacity:0.3;' }, ['|']),
-      createElement('span', { class: 'wallet-dot' }),
-      createElement('span', {}, [this.wallet.getShortAddress() || 'Connected']),
-      createElement('span', { class: 'disconnect-btn', click: () => this.wallet.disconnect() }, ['Disconnect']),
+    box.appendChild(createElement('h3', { style: 'color:#00e676;margin-bottom:12px;font-family:"Cinzel",serif;' }, ['Connected Wallet']));
+
+    const infoRow = createElement('div', { style: 'margin-bottom:16px;background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;' }, [
+      createElement('div', { style: 'font-size:0.8rem;opacity:0.6;margin-bottom:4px;' }, ['Public Address']),
+      createElement('div', { class: 'mono', style: 'color:#448aff;font-size:0.9rem;word-break:break-all;' }, [pubkey]),
     ]);
-    screen.appendChild(badge);
+    box.appendChild(infoRow);
+
+    const statsRow = createElement('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;' }, [
+      createElement('div', { style: 'background:rgba(255,255,255,0.04);padding:10px;border-radius:8px;text-align:center;' }, [
+        createElement('div', { style: 'font-size:0.75rem;opacity:0.6;' }, ['Games Played']),
+        createElement('div', { style: 'font-size:1.3rem;font-weight:bold;color:#fff;' }, [`${profile.stats.gamesPlayed}`])
+      ]),
+      createElement('div', { style: 'background:rgba(255,255,255,0.04);padding:10px;border-radius:8px;text-align:center;' }, [
+        createElement('div', { style: 'font-size:0.75rem;opacity:0.6;' }, ['Victories']),
+        createElement('div', { style: 'font-size:1.3rem;font-weight:bold;color:#00e676;' }, [`${profile.stats.wins}`])
+      ])
+    ]);
+    box.appendChild(statsRow);
+
+    const viewProfileBtn = createElement('button', {
+      class: 'btn',
+      style: 'width:100%;background:rgba(68,138,255,0.15);color:#448aff;border:1px solid rgba(68,138,255,0.4);padding:10px;',
+      click: () => {
+        this._activeNavTab = 'profile';
+        this.render();
+      }
+    }, ['👤 View Full Profile & Wallet Details']);
+    box.appendChild(viewProfileBtn);
+
+    return box;
   }
 
-  _renderLobbySection(screen) {
-    const section = createElement('div', { class: 'lobby-section glass' });
+  _renderLobbyConfigBox() {
+    const section = createElement('div', { class: 'lobby-section glass', style: 'width:100%;min-width:0;padding:24px;' });
+    section.appendChild(createElement('h3', { style: 'color:#448aff;margin-bottom:16px;font-family:"Cinzel",serif;text-align:center;' }, ['Match Lobby & Wager Setup']));
     
     // Player count selector
     const countRow = createElement('div', { class: 'player-count-selector', style: 'display:flex;gap:8px;margin-bottom:20px;justify-content:center' });
@@ -173,7 +342,7 @@ export class SetupScreen {
       const active = this.lobby._playerCount === n;
       const btn = createElement('button', {
         class: `btn ${active ? 'active' : ''}`,
-        style: active ? 'background:#448aff;color:white;border-color:#448aff' : '',
+        style: active ? 'background:#448aff;color:white;border-color:#448aff;font-weight:bold;' : '',
         click: () => this.lobby.setPlayerCount(n)
       }, [`${n} Players`]);
       countRow.appendChild(btn);
@@ -222,26 +391,6 @@ export class SetupScreen {
       slotEl.appendChild(readyBtn);
 
       section.appendChild(slotEl);
-    }
-    
-    // Player stats + Profile button
-    if (this.wallet.isConnected()) {
-      const profile = this.store.getProfile(this.wallet.getPublicKey());
-      const profileRow = createElement('div', { style: 'margin-top:16px;display:flex;align-items:center;justify-content:center;gap:16px' });
-
-      const stats = createElement('span', { style: 'opacity:0.6;font-size:0.85rem' }, [
-        `${profile.stats.gamesPlayed} games played | ${profile.stats.wins} wins`
-      ]);
-      profileRow.appendChild(stats);
-
-      const profileBtn = createElement('button', {
-        class: 'btn',
-        style: 'background:rgba(68,138,255,0.15);color:#448aff;border-color:#448aff40;padding:6px 16px;font-size:0.85rem;cursor:pointer',
-        click: () => this.profilePage.show()
-      }, ['👤 Profile']);
-      profileRow.appendChild(profileBtn);
-
-      section.appendChild(profileRow);
     }
     
     // Entry Fee Selector
@@ -350,8 +499,239 @@ export class SetupScreen {
     }
     
     section.appendChild(startBtn);
+    return section;
+  }
+
+  // ================================================================
+  // Tab 2: World Map Preview Tab
+  // ================================================================
+  _renderMapPreviewTab() {
+    const wrapper = createElement('div');
+
+    wrapper.appendChild(createElement('h2', { style: 'font-family:"Cinzel Decorative",cursive;color:#00e676;margin-bottom:8px;' }, ['🗺️ World Map Preview & Regional Intel']));
+    wrapper.appendChild(createElement('p', { style: 'color:#94a3b8;font-family:"Cinzel",serif;margin-bottom:20px;' }, ['Click any region on the tactical map to inspect its territory features, gate slots, ocean routes, and starting faction lore.']));
+
+    const mapGrid = createElement('div', { class: 'map-preview-wrapper' });
+
+    // Map container
+    const mapContainer = createElement('div', { id: 'landing-map-container' });
+    mapGrid.appendChild(mapContainer);
+
+    // Inspector card
+    const inspector = createElement('div', { id: 'region-inspector', class: 'region-inspector-card' });
+    this._renderRegionInspectorCard(inspector);
+    mapGrid.appendChild(inspector);
+
+    wrapper.appendChild(mapGrid);
+    return wrapper;
+  }
+
+  _initMapPreview() {
+    const container = $('#landing-map-container');
+    if (!container) return;
+
+    // Create a preview game state with all 4 factions
+    const previewState = new GameState();
+    previewState.initGame([
+      { walletAddress: 'P1_Cthulhu', factionId: 'cthulhu' },
+      { walletAddress: 'P2_Chaos', factionId: 'crawling_chaos' },
+      { walletAddress: 'P3_Yellow', factionId: 'yellow_sign' },
+      { walletAddress: 'P4_Goat', factionId: 'black_goat' }
+    ]);
+
+    this._previewMapRenderer = new MapRenderer(container, previewState);
+    this._previewMapRenderer.init();
+
+    this._previewMapRenderer.onRegionClick((regionId) => {
+      this._selectedRegionId = regionId;
+      const inspector = $('#region-inspector');
+      if (inspector) {
+        this._renderRegionInspectorCard(inspector);
+      }
+    });
+  }
+
+  _renderRegionInspectorCard(card) {
+    card.innerHTML = '';
+
+    if (!this._selectedRegionId || !MAP_REGIONS[this._selectedRegionId]) {
+      card.appendChild(createElement('h3', { style: 'color:#448aff;margin-bottom:8px;font-family:"Cinzel",serif;' }, ['📍 Region Inspector']));
+      card.appendChild(createElement('p', { style: 'font-size:0.9rem;color:#94a3b8;line-height:1.6;' }, [
+        'Select any region on the map to view detailed strategy data including adjacent sea routes, Ritual Gate slots, and starting faction positions.'
+      ]));
+      card.appendChild(createElement('div', { style: 'margin-top:auto;padding:12px;background:rgba(0,230,118,0.06);border-radius:8px;border:1px dashed rgba(0,230,118,0.2);text-align:center;font-size:0.8rem;color:#00e676;' }, [
+        '💡 Tip: Controlling Ritual Gates generates Doom and Power during the Doom Phase!'
+      ]));
+      return;
+    }
+
+    const reg = MAP_REGIONS[this._selectedRegionId];
+    card.appendChild(createElement('h3', { style: 'color:#00e676;margin-bottom:4px;font-family:"Cinzel",serif;' }, [reg.name || this._selectedRegionId]));
+    card.appendChild(createElement('div', { style: 'font-size:0.8rem;color:#448aff;font-weight:bold;margin-bottom:12px;' }, [`Type: ${reg.isOcean ? '🌊 Ocean Region' : '🏔️ Land Territory'}`]));
+
+    const details = createElement('div', { style: 'font-size:0.85rem;display:flex;flex-direction:column;gap:8px;' }, [
+      createElement('div', {}, [
+        createElement('strong', { style: 'color:#aaa;' }, ['Adjacent Regions: ']),
+        createElement('span', { style: 'color:#fff;' }, [(reg.adj || []).map(a => MAP_REGIONS[a]?.name || a).join(', ')])
+      ]),
+      createElement('div', {}, [
+        createElement('strong', { style: 'color:#aaa;' }, ['Ritual Gate Capacity: ']),
+        createElement('span', { style: 'color:#ffd600;font-weight:bold;' }, ['1 Gate Slot'])
+      ])
+    ]);
+    card.appendChild(details);
+
+    // Lore notes based on region
+    let lore = 'A vital region contested by cosmic horrors in their struggle for planetary dominance.';
+    if (reg.isOcean) {
+      lore = 'Deep nautical waters where Great Cthulhu and the Deep Ones submerge their forces beyond standard land barriers.';
+    } else if (this._selectedRegionId.includes('north_america') || this._selectedRegionId.includes('south_america')) {
+      lore = 'Ancient ritual grounds rich in ley lines, ideal for constructing Doom Gates.';
+    }
+
+    card.appendChild(createElement('div', { style: 'margin-top:12px;font-size:0.8rem;color:#94a3b8;font-style:italic;line-height:1.5;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;' }, [lore]));
+  }
+
+  // ================================================================
+  // Tab 3: Game Logs & Leaderboard Tab
+  // ================================================================
+  _renderLogsTab() {
+    const wrapper = createElement('div');
+
+    wrapper.appendChild(createElement('h2', { style: 'font-family:"Cinzel Decorative",cursive;color:#00e676;margin-bottom:8px;' }, ['📜 Game Logs & Global Leaderboard']));
+    wrapper.appendChild(createElement('p', { style: 'color:#94a3b8;font-family:"Cinzel",serif;margin-bottom:20px;' }, ['Browse recent $CTHULHU wagered matches, winner prize pots, payout statuses, and global player rankings.']));
+
+    // Subtabs
+    const subtabs = createElement('div', { style: 'display:flex;gap:10px;margin-bottom:20px;' });
     
-    screen.appendChild(section);
+    const btnWagers = createElement('button', {
+      class: `btn ${this._logsSubTab === 'wagers' ? 'active' : ''}`,
+      style: this._logsSubTab === 'wagers' ? 'background:#00e676;color:#000;font-weight:bold;' : '',
+      click: () => {
+        this._logsSubTab = 'wagers';
+        this.render();
+      }
+    }, ['💰 Wagered Matches & Payouts']);
+
+    const btnLb = createElement('button', {
+      class: `btn ${this._logsSubTab === 'leaderboard' ? 'active' : ''}`,
+      style: this._logsSubTab === 'leaderboard' ? 'background:#448aff;color:#fff;font-weight:bold;' : '',
+      click: () => {
+        this._logsSubTab = 'leaderboard';
+        this.render();
+      }
+    }, ['🏆 Global Leaderboard']);
+
+    subtabs.appendChild(btnWagers);
+    subtabs.appendChild(btnLb);
+    wrapper.appendChild(subtabs);
+
+    const logContent = createElement('div', { class: 'glass', style: 'padding:20px;border-radius:14px;' });
+    
+    if (this._logsSubTab === 'wagers') {
+      logContent.appendChild(this._renderWagersList());
+    } else {
+      logContent.appendChild(this._renderLeaderboardTable());
+    }
+
+    wrapper.appendChild(logContent);
+    return wrapper;
+  }
+
+  _renderWagersList() {
+    const container = createElement('div');
+    container.innerHTML = '<div style="color:#888;font-size:0.9rem;">Loading wager logs...</div>';
+
+    ProfileAPI.getWagerLogs().then(logs => {
+      container.innerHTML = '';
+      if (!logs || logs.length === 0) {
+        container.appendChild(createElement('p', { style: 'color:#888;text-align:center;padding:20px;' }, ['No wagered matches recorded yet. Start a match with a $CTHULHU entry fee!']));
+        return;
+      }
+
+      const table = createElement('div', { class: 'leaderboard-table' });
+      const headerRow = createElement('div', { class: 'lb-row lb-header', style: 'grid-template-columns: 100px 1fr 140px 120px 150px;' });
+      ['Date', 'Winner Wallet', 'Faction', 'Prize Pot', 'Status'].forEach(h => {
+        headerRow.appendChild(createElement('div', { class: 'lb-cell' }, [h]));
+      });
+      table.appendChild(headerRow);
+
+      for (const w of logs) {
+        const date = w.completedAt ? new Date(w.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        const winner = w.winnerWallet ? `${w.winnerWallet.slice(0, 6)}...${w.winnerWallet.slice(-4)}` : '—';
+        const faction = w.winnerFaction || '—';
+        const statusText = w.status === 'paid' ? '✅ Paid' : '⏳ Pending Admin Payout';
+        const statusColor = w.status === 'paid' ? '#00c853' : '#ffab00';
+
+        const row = createElement('div', { class: 'lb-row', style: 'grid-template-columns: 100px 1fr 140px 120px 150px;' });
+        row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'font-size:0.75rem;' }, [date]));
+        row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'color:#00e676;' }, [winner]));
+        row.appendChild(createElement('div', { class: 'lb-cell' }, [faction]));
+        row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'color:#00e676;font-weight:bold;' }, [`🪙 ${w.prizePot || 0}`]));
+        row.appendChild(createElement('div', { class: 'lb-cell mono', style: `color:${statusColor};font-size:0.8rem;` }, [statusText]));
+
+        table.appendChild(row);
+      }
+
+      container.appendChild(table);
+    }).catch(err => {
+      container.innerHTML = `<div style="color:#ff5252;">Failed to load wager logs: ${err.message || err}</div>`;
+    });
+
+    return container;
+  }
+
+  _renderLeaderboardTable() {
+    const container = createElement('div');
+    container.innerHTML = '<div style="color:#888;font-size:0.9rem;">Loading leaderboard...</div>';
+
+    ProfileAPI.getLeaderboard().then(lb => {
+      container.innerHTML = '';
+      if (!lb || lb.length === 0) {
+        container.appendChild(createElement('p', { style: 'color:#888;text-align:center;padding:20px;' }, ['No leaderboard data available yet.']));
+        return;
+      }
+
+      const table = createElement('div', { class: 'leaderboard-table' });
+      const headerRow = createElement('div', { class: 'lb-row lb-header', style: 'grid-template-columns: 50px 1fr 100px 100px 100px;' });
+      ['#', 'Player / Wallet', 'Games', 'Wins', 'Win Rate'].forEach(h => {
+        headerRow.appendChild(createElement('div', { class: 'lb-cell' }, [h]));
+      });
+      table.appendChild(headerRow);
+
+      lb.forEach((entry, idx) => {
+        const rank = idx + 1;
+        const name = entry.displayName || (entry.walletAddress ? `${entry.walletAddress.slice(0, 6)}...${entry.walletAddress.slice(-4)}` : `Player ${rank}`);
+        const games = entry.stats?.gamesPlayed || 0;
+        const wins = entry.stats?.wins || 0;
+        const winRate = games > 0 ? `${Math.round((wins / games) * 100)}%` : '0%';
+
+        const row = createElement('div', { class: 'lb-row', style: 'grid-template-columns: 50px 1fr 100px 100px 100px;' });
+        row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'color:#ffd600;font-weight:bold;' }, [`#${rank}`]));
+        row.appendChild(createElement('div', { class: 'lb-cell' }, [name]));
+        row.appendChild(createElement('div', { class: 'lb-cell mono' }, [`${games}`]));
+        row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'color:#00e676;' }, [`${wins}`]));
+        row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'color:#448aff;' }, [winRate]));
+
+        table.appendChild(row);
+      });
+
+      container.appendChild(table);
+    }).catch(err => {
+      container.innerHTML = `<div style="color:#ff5252;">Failed to load leaderboard: ${err.message || err}</div>`;
+    });
+
+    return container;
+  }
+
+  // ================================================================
+  // Tab 4: Profile Tab
+  // ================================================================
+  _renderProfileTab() {
+    const wrapper = createElement('div');
+    const container = createElement('div', { id: 'landing-profile-container' });
+    wrapper.appendChild(container);
+    return wrapper;
   }
 
   hide() {
