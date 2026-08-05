@@ -4,6 +4,8 @@
 [![Solana](https://img.shields.io/badge/Solana-Web3.js-14F195?style=flat-square&logo=solana&logoColor=black)](https://solana.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
+**🪙 Token CA:** `ANohyVuF1cPGAVUNaX4wbuXV5ySPiUVwyaS1p3aDpump`
+
 A web-based digital implementation of the asymmetric cosmic horror strategy board game **Cthulhu Wars** (originally designed by Sandy Petersen), featuring Tabletop Simulator-style artwork, interactive map topology, 4 core factions, full turn phase automation, and **Solana Web3 wallet integration**.
 
 ---
