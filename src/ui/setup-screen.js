@@ -88,14 +88,31 @@ export class SetupScreen {
 
   _renderWalletSection(screen) {
     const section = createElement('div', { class: 'wallet-section glass' });
-    section.appendChild(createElement('h3', { style: 'margin-bottom:16px;text-align:center' }, ['Connect Wallet to Play']));
-    
-    const wallets = this.wallet.getAvailableWallets();
+    section.appendChild(createElement('h3', { style: 'margin-bottom:16px;text-align:center' }, ['Sign In to Play']));
+
+    // Unified Privy Auth Button (𝕏 Twitter + Solana Wallets)
+    const privyBtn = createElement('button', {
+      class: 'wallet-btn privy-btn',
+      style: 'background:linear-gradient(135deg, #6366f1, #4f46e5);color:white;font-weight:bold;justify-content:center;padding:16px;font-size:1.1rem;margin-bottom:16px;box-shadow:0 0 20px rgba(99,102,241,0.4)',
+      click: async () => {
+        try {
+          await this.wallet.connect('privy');
+        } catch (err) {
+          privyBtn.textContent = err.message || 'Connection failed';
+          setTimeout(() => this.render(), 2000);
+        }
+      }
+    }, [
+      createElement('span', { class: 'wallet-icon' }, ['🔐']),
+      createElement('span', { class: 'wallet-name', style: 'text-align:center' }, ['Connect with Privy (𝕏 / Solana)']),
+    ]);
+    section.appendChild(privyBtn);
+
+    // Direct Browser Wallet Options
+    const wallets = this.wallet.getAvailableWallets().filter(w => w.id !== 'privy');
     for (const w of wallets) {
-      const isTwitter = w.id === 'privy_twitter';
       const btn = createElement('button', {
         class: `wallet-btn ${w.id}`,
-        style: isTwitter ? 'background:#0f1419;border:1px solid #1d9bf0;color:#fff;font-weight:bold;margin-bottom:12px' : '',
         click: async () => {
           try {
             await this.wallet.connect(w.id);
@@ -107,7 +124,7 @@ export class SetupScreen {
       }, [
         createElement('span', { class: 'wallet-icon' }, [w.icon]),
         createElement('span', { class: 'wallet-name' }, [w.name]),
-        createElement('span', { class: 'wallet-status' }, [isTwitter ? 'Privy Auth' : (w.detected ? 'Detected' : 'Not installed')]),
+        createElement('span', { class: 'wallet-status' }, [w.detected ? 'Detected' : 'Not installed']),
       ]);
       section.appendChild(btn);
     }
@@ -115,7 +132,7 @@ export class SetupScreen {
     // Dev mode: quick play
     const devBtn = createElement('button', {
       class: 'wallet-btn start-btn',
-      style: 'margin-top:20px;background:linear-gradient(135deg, #448aff, #1565c0);color:white;font-weight:bold;justify-content:center',
+      style: 'margin-top:16px;background:rgba(255,255,255,0.06);color:#aaa;border:1px solid rgba(255,255,255,0.1);justify-content:center',
       click: () => {
         this.wallet._publicKey = 'DEV_' + Math.random().toString(36).substring(2, 8);
         this.wallet._walletName = 'Quick Play';

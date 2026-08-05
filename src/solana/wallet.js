@@ -71,7 +71,7 @@ export class WalletManager extends EventEmitter {
    */
   async connect(walletId) {
     try {
-      if (walletId === 'privy_twitter') {
+      if (walletId === 'privy' || walletId === 'privy_twitter') {
         return await this._connectPrivyTwitter();
       }
 
