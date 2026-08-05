@@ -150,36 +150,76 @@ export class MapRenderer3D {
   _setupControls() {
     const dom = this.renderer.domElement;
 
+    // Prevent context menu on right click for smooth panning
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+
     dom.addEventListener('pointerdown', (e) => {
       this.isMouseDown = true;
+      this.buttonPressed = e.button; // 0 = Left, 2 = Right
       this.previousMousePosition = { x: e.clientX, y: e.clientY };
     });
 
     dom.addEventListener('pointermove', (e) => {
-      if (this.isMouseDown) {
-        const deltaX = e.clientX - this.previousMousePosition.x;
-        const deltaY = e.clientY - this.previousMousePosition.y;
+      if (!this.isMouseDown) return;
 
-        // Rotate camera around origin
-        const radius = Math.sqrt(this.camera.position.x ** 2 + this.camera.position.z ** 2);
-        let theta = Math.atan2(this.camera.position.x, this.camera.position.z);
+      const deltaX = e.clientX - this.previousMousePosition.x;
+      const deltaY = e.clientY - this.previousMousePosition.y;
+
+      const isPanning = e.shiftKey || this.buttonPressed === 2 || e.buttons === 2;
+
+      if (isPanning) {
+        // Pan Left / Right / Up / Down across the 3D map board
+        const panSpeed = 0.04;
+        
+        // Calculate camera right vector
+        const forward = new THREE.Vector3();
+        this.camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+
+        const right = new THREE.Vector3();
+        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+        // Move camera target and camera position along right and forward vectors
+        const moveX = right.clone().multiplyScalar(-deltaX * panSpeed);
+        const moveZ = forward.clone().multiplyScalar(deltaY * panSpeed);
+
+        const panMove = moveX.add(moveZ);
+
+        this.cameraTarget.add(panMove);
+        this.camera.position.add(panMove);
+
+        // Clamp cameraTarget to map bounds
+        this.cameraTarget.x = Math.max(-25, Math.min(25, this.cameraTarget.x));
+        this.cameraTarget.z = Math.max(-18, Math.min(18, this.cameraTarget.z));
+        this.camera.lookAt(this.cameraTarget);
+      } else {
+        // Orbit rotate camera around cameraTarget
+        const radius = Math.hypot(
+          this.camera.position.x - this.cameraTarget.x,
+          this.camera.position.z - this.cameraTarget.z
+        );
+        let theta = Math.atan2(
+          this.camera.position.x - this.cameraTarget.x,
+          this.camera.position.z - this.cameraTarget.z
+        );
         theta -= deltaX * 0.005;
 
-        this.camera.position.x = radius * Math.sin(theta);
-        this.camera.position.z = radius * Math.cos(theta);
+        this.camera.position.x = this.cameraTarget.x + radius * Math.sin(theta);
+        this.camera.position.z = this.cameraTarget.z + radius * Math.cos(theta);
         this.camera.position.y = Math.max(10, Math.min(50, this.camera.position.y + deltaY * 0.05));
         this.camera.lookAt(this.cameraTarget);
-
-        this.previousMousePosition = { x: e.clientX, y: e.clientY };
       }
+
+      this.previousMousePosition = { x: e.clientX, y: e.clientY };
     });
 
     dom.addEventListener('pointerup', (e) => {
       const dist = Math.hypot(e.clientX - this.previousMousePosition.x, e.clientY - this.previousMousePosition.y);
       this.isMouseDown = false;
 
-      // Handle Click if mouse didn't drag far
-      if (dist < 5) {
+      // Handle Click if mouse didn't drag far and was Left Click (button 0)
+      if (dist < 5 && e.button === 0) {
         const rect = dom.getBoundingClientRect();
         this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -196,9 +236,36 @@ export class MapRenderer3D {
       }
     });
 
+    // Keyboard Arrow / WASD Panning
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowUp', 'KeyW', 'ArrowDown', 'KeyS', 'ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) {
+        const keySpeed = 1.2;
+        const forward = new THREE.Vector3();
+        this.camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+
+        const right = new THREE.Vector3();
+        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+        const move = new THREE.Vector3();
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') move.add(forward.clone().multiplyScalar(keySpeed));
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') move.add(forward.clone().multiplyScalar(-keySpeed));
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') move.add(right.clone().multiplyScalar(-keySpeed));
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') move.add(right.clone().multiplyScalar(keySpeed));
+
+        this.cameraTarget.add(move);
+        this.camera.position.add(move);
+
+        this.cameraTarget.x = Math.max(-25, Math.min(25, this.cameraTarget.x));
+        this.cameraTarget.z = Math.max(-18, Math.min(18, this.cameraTarget.z));
+        this.camera.lookAt(this.cameraTarget);
+      }
+    });
+
     dom.addEventListener('wheel', (e) => {
       e.preventDefault();
-      this.camera.position.y = Math.max(12, Math.min(55, this.camera.position.y + e.deltaY * 0.03));
+      this.camera.position.y = Math.max(10, Math.min(50, this.camera.position.y + e.deltaY * 0.03));
       this.camera.lookAt(this.cameraTarget);
     }, { passive: false });
   }
