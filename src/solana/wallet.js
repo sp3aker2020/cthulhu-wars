@@ -1,7 +1,7 @@
 import EventEmitter from '../utils/events.js';
 import Privy, { LocalStorage } from '@privy-io/js-sdk-core';
 
-export const PRIVY_APP_ID = 'cmmo6f3ai00c10clbwugdvqpo';
+export const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || '';
 
 /**
  * Manages wallet connections for Solana & Privy Auth (Twitter/X, Phantom, Solflare, etc.).
