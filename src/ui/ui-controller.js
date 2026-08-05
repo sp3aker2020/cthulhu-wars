@@ -864,9 +864,10 @@ export class UIController {
     let prizeHTML = '';
     if (prizePot > 0 && winnerFaction) {
       prizeHTML = `
-        <div style="background: rgba(0,230,118,0.2); border: 1px solid #00e676; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; animation: pulse 2s infinite">
-          <h3 style="color: #00e676; margin: 0 0 10px 0;">🏆 ${winnerFaction.name} claims the Prize Pot!</h3>
-          <div style="color: #00e676; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #00e676">🪙 +${prizePot} $CTHULHU</div>
+        <div style="background: rgba(0,230,118,0.15); border: 1px solid #00e676; padding: 15px; border-radius: 10px; margin: 15px 0; text-align: center;">
+          <h3 style="color: #00e676; margin: 0 0 5px 0;">🏆 ${winnerFaction.name} Wins the Prize Pot!</h3>
+          <div style="color: #00e676; font-size: 1.8rem; font-weight: bold; text-shadow: 0 0 10px rgba(0,230,118,0.5)">🪙 +${prizePot} $CTHULHU</div>
+          <div style="color: #ffab00; font-size: 0.85rem; margin-top: 6px;">⏳ Recorded in Wager Logs for Admin Payout / Claim</div>
         </div>
       `;
     }

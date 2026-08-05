@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { getProfiles, getMatches, closeDB } from './db.js';
+import { getProfiles, getMatches, getWagers, closeDB } from './db.js';
 import { getVaultPublicKey, verifyDeposit, sendPrizeToWinner } from './vault.js';
 
 const app = express();
@@ -373,6 +373,71 @@ app.post('/api/wager/payout', async (req, res) => {
   } catch (err) {
     console.error('POST /api/wager/payout error:', err);
     res.status(500).json({ success: false, error: 'Failed to execute payout' });
+  }
+});
+
+// ============================================================
+// POST /api/wager/record-game
+// Logs a completed wagered match with winner, prize pot, & players.
+// Status defaults to 'pending_admin_payout'.
+// ============================================================
+app.post('/api/wager/record-game', async (req, res) => {
+  try {
+    const { entryFee, prizePot, players, winnerWallet, winnerFaction, winnerScore } = req.body;
+    if (!prizePot || !winnerWallet) {
+      return res.status(400).json({ error: 'prizePot and winnerWallet are required' });
+    }
+
+    const wagers = await getWagers();
+    const wagerRecord = {
+      entryFee: entryFee || 0,
+      prizePot: prizePot || 0,
+      players: players || [],
+      winnerWallet,
+      winnerFaction: winnerFaction || null,
+      winnerScore: winnerScore || 0,
+      status: 'pending_admin_payout', // Admins manually approve & payout
+      completedAt: new Date()
+    };
+
+    const result = await wagers.insertOne(wagerRecord);
+    console.log(`[Wager] Recorded wager game win for ${winnerWallet} (Prize Pot: ${prizePot} $CTHULHU)`);
+    res.json({ success: true, id: result.insertedId, record: wagerRecord });
+  } catch (err) {
+    console.error('POST /api/wager/record-game error:', err);
+    res.status(500).json({ error: 'Failed to record wager game' });
+  }
+});
+
+// ============================================================
+// GET /api/wagers
+// Returns full log of all wagered games played.
+// Supports filtering by wallet query (?wallet=...).
+// ============================================================
+app.get('/api/wagers', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const { wallet } = req.query;
+    const wagers = await getWagers();
+
+    const query = {};
+    if (wallet) {
+      query.$or = [
+        { winnerWallet: wallet },
+        { 'players.walletAddress': wallet }
+      ];
+    }
+
+    const list = await wagers
+      .find(query)
+      .sort({ completedAt: -1 })
+      .limit(limit)
+      .toArray();
+
+    res.json(list);
+  } catch (err) {
+    console.error('GET /api/wagers error:', err);
+    res.status(500).json({ error: 'Failed to fetch wagers list' });
   }
 });
 

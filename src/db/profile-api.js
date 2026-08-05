@@ -117,3 +117,21 @@ export async function executeWagerPayout(winnerAddress, prizePot) {
     body: JSON.stringify({ winnerAddress, prizePot })
   });
 }
+
+/**
+ * Records a completed wager match for admin payout / logging.
+ */
+export async function recordWagerGame(data) {
+  return apiFetch('/api/wager/record-game', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+/**
+ * Fetches log of wagered matches played.
+ */
+export async function getWagerLogs(wallet = null, limit = 50) {
+  const query = wallet ? `?wallet=${encodeURIComponent(wallet)}&limit=${limit}` : `?limit=${limit}`;
+  return apiFetch(`/api/wagers${query}`);
+}

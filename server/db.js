@@ -39,6 +39,14 @@ export async function getMatches() {
 }
 
 /**
+ * Get the wagers collection.
+ */
+export async function getWagers() {
+  const database = await getDB();
+  return database.collection('wagers');
+}
+
+/**
  * Graceful shutdown — close the MongoDB connection.
  */
 export async function closeDB() {

@@ -53,10 +53,11 @@ export class ProfilePage {
       }
     }
     
-    const [profile, history, leaderboard] = await Promise.all([
+    const [profile, history, leaderboard, wagerLogs] = await Promise.all([
       ProfileAPI.getProfile(walletAddr).catch(() => null),
       ProfileAPI.getMatchHistory(walletAddr).catch(() => []),
-      ProfileAPI.getLeaderboard().catch(() => [])
+      ProfileAPI.getLeaderboard().catch(() => []),
+      ProfileAPI.getWagerLogs().catch(() => [])
     ]);
 
     this._profile = profile || {};
@@ -71,6 +72,7 @@ export class ProfilePage {
     
     this._history = history || [];
     this._leaderboard = leaderboard || [];
+    this._wagerLogs = wagerLogs || [];
 
     this.render();
   }
@@ -110,6 +112,8 @@ export class ProfilePage {
       page.appendChild(this._renderMatchHistory());
     } else if (this._activeTab === 'leaderboard') {
       page.appendChild(this._renderLeaderboard());
+    } else if (this._activeTab === 'wagers') {
+      page.appendChild(this._renderWagerLogs());
     }
 
     container.appendChild(page);
@@ -257,7 +261,8 @@ export class ProfilePage {
     const tabs = [
       { id: 'stats', label: '📊 Stats' },
       { id: 'history', label: '📜 Match History' },
-      { id: 'leaderboard', label: '🏆 Leaderboard' }
+      { id: 'leaderboard', label: '🏆 Leaderboard' },
+      { id: 'wagers', label: '💰 Wager Logs & Claims' }
     ];
 
     for (const tab of tabs) {
@@ -518,5 +523,56 @@ export class ProfilePage {
 
     // Focus input
     setTimeout(() => input.focus(), 100);
+  }
+
+  // ================================================================
+  // Wager Logs & Claims
+  // ================================================================
+  _renderWagerLogs() {
+    const section = createElement('div', { class: 'profile-section' });
+    section.appendChild(createElement('h3', { class: 'profile-section-title' }, ['Wagered Match Logs & Earnings Claims']));
+
+    if (!this._wagerLogs || this._wagerLogs.length === 0) {
+      section.appendChild(createElement('p', { class: 'profile-empty' }, ['No wagered matches logged yet. Play a game with a $CTHULHU entry fee!']));
+      return section;
+    }
+
+    const myWallet = this.wallet.getPublicKey();
+    const table = createElement('div', { class: 'leaderboard-table' });
+
+    // Header
+    const headerRow = createElement('div', { class: 'lb-row lb-header', style: 'grid-template-columns: 80px 1fr 140px 100px 130px;' });
+    ['Date', 'Winner Wallet', 'Faction', 'Prize Earnings', 'Payout Status'].forEach(h => {
+      headerRow.appendChild(createElement('div', { class: 'lb-cell' }, [h]));
+    });
+    table.appendChild(headerRow);
+
+    for (const wager of this._wagerLogs) {
+      const date = wager.completedAt ? new Date(wager.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      const isMyWin = wager.winnerWallet === myWallet;
+      const shortWinner = wager.winnerWallet ? `${wager.winnerWallet.slice(0, 6)}...${wager.winnerWallet.slice(-4)}` : '—';
+      const factionName = FACTION_NAMES[wager.winnerFaction] || wager.winnerFaction || '—';
+      const factionColor = FACTION_COLORS[wager.winnerFaction] || '#ffd600';
+      const statusText = wager.status === 'paid' ? '✅ Paid' : '⏳ Pending Admin Payout';
+      const statusColor = wager.status === 'paid' ? '#00c853' : '#ffab00';
+
+      const row = createElement('div', {
+        class: `lb-row ${isMyWin ? 'lb-me' : ''}`,
+        style: 'grid-template-columns: 80px 1fr 140px 100px 130px;'
+      });
+
+      row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'font-size:0.75rem;' }, [date]));
+      row.appendChild(createElement('div', { class: 'lb-cell mono', style: isMyWin ? 'color:#00e676;font-weight:bold;' : '' }, [
+        shortWinner + (isMyWin ? ' (You)' : '')
+      ]));
+      row.appendChild(createElement('div', { class: 'lb-cell', style: `color:${factionColor}` }, [factionName]));
+      row.appendChild(createElement('div', { class: 'lb-cell mono', style: 'color:#00e676;font-weight:bold;' }, [`🪙 ${wager.prizePot || 0}`]));
+      row.appendChild(createElement('div', { class: 'lb-cell mono', style: `color:${statusColor};font-size:0.78rem;` }, [statusText]));
+
+      table.appendChild(row);
+    }
+
+    section.appendChild(table);
+    return section;
   }
 }

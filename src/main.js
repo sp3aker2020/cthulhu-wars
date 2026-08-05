@@ -165,22 +165,34 @@ class CthulhuWarsApp {
     const winner = scores[0];
     const prizePot = this.gameState.state.prizePot || 0;
     
-    // Payout winner
+    // Record Wager Game Log for Admin Payout & Claims
     if (prizePot > 0 && winner) {
       const wPlayer = this.gameState.getPlayer(winner.playerIndex);
-      if (wPlayer.walletAddress) {
+      const wWallet = wPlayer?.walletAddress || 'Unknown';
+      const entryFee = this.gameState.state.entryFee || 0;
+
+      // Update in-game player profile balance display
+      if (wPlayer && wPlayer.walletAddress) {
         this.playerStore.addBalance(wPlayer.walletAddress, prizePot);
-        // On-chain vault payout
-        if (!wPlayer.walletAddress.startsWith('DEV_') && !wPlayer.walletAddress.startsWith('SOL_')) {
-          ProfileAPI.executeWagerPayout(wPlayer.walletAddress, prizePot).then(res => {
-            if (res && res.success) {
-              console.log(`✓ On-chain prize pot payout of ${prizePot} $CTHULHU sent to ${wPlayer.walletAddress}`);
-            } else {
-              console.warn('Vault payout warning:', res?.error || 'Failed to send vault payout');
-            }
-          }).catch(err => console.error('Vault payout error:', err));
-        }
       }
+
+      // Record in backend wager log for admin payout
+      ProfileAPI.recordWagerGame({
+        entryFee,
+        prizePot,
+        players: this.gameState.state.players.map(p => ({
+          walletAddress: p.walletAddress,
+          factionId: p.factionId,
+          score: p.doom
+        })),
+        winnerWallet: wWallet,
+        winnerFaction: wPlayer?.factionId,
+        winnerScore: winner.score
+      }).then(res => {
+        if (res && res.success) {
+          console.log(`[WagerLog] Logged wager game: ${prizePot} $CTHULHU won by ${wWallet} (Pending Admin Payout)`);
+        }
+      }).catch(err => console.warn('Failed to log wager game:', err));
     }
     
     this.uiController.showEndScreen(scores, prizePot);
