@@ -93,7 +93,7 @@ export class CombatEngine {
     return units.reduce((total, unit) => total + unit.combatValue, 0);
   }
 
-  resolveBattle(attackerIndex, defenderIndex, regionId) {
+  resolveBattle(attackerIndex, defenderIndex, regionId, rng = Math.random) {
     const attacker = this.gameState.getPlayer(attackerIndex);
     const defender = this.gameState.getPlayer(defenderIndex);
     
@@ -103,15 +103,15 @@ export class CombatEngine {
 
     // Devour
     if (attacker.factionId === 'cthulhu' && atkUnits.some(u => u.unitType === 'great_cthulhu' || u.unitType === 'goo') && defUnitsAll.length > 0) {
-      devourTarget = defUnitsAll[Math.floor(Math.random() * defUnitsAll.length)];
+      devourTarget = defUnitsAll[Math.floor(rng() * defUnitsAll.length)];
       this.gameState.killUnit(defenderIndex, devourTarget.id, regionId);
     }
     
     const atkDice = this.calculateCombatDice(attackerIndex, regionId);
     const defDice = this.calculateCombatDice(defenderIndex, regionId);
 
-    const atkRolls = rollDice(atkDice);
-    const defRolls = rollDice(defDice);
+    const atkRolls = rollDice(atkDice, rng);
+    const defRolls = rollDice(defDice, rng);
 
     const atkResults = interpretDice(atkRolls);
     const defResults = interpretDice(defRolls);

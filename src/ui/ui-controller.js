@@ -1,5 +1,7 @@
 import { $, $$, createElement, show, hide, addClass, removeClass } from '../utils/dom.js';
 import { FACTIONS, MAP_REGIONS, UNIT_ICONS, PHASE_NAMES, GAME_CONFIG } from '../game/constants.js';
+import { applyAction } from '../game/engine.js';
+import { CombatEngine } from '../game/combat.js';
 
 export class UIController {
   constructor(gameState, mapRenderer) {
@@ -11,8 +13,8 @@ export class UIController {
   }
 
   init() {
-    this.gameState.on('phaseChange', () => this.updateHeader());
-    this.gameState.on('turnChange', () => this.updateHeader());
+    this.gameState.on('phaseChange', () => { this.updateHeader(); this.checkPhaseLoops(); });
+    this.gameState.on('turnChange', () => { this.updateHeader(); this.checkPhaseLoops(); });
     this.gameState.on('powerChange', () => this.updateFactionPanel());
     this.gameState.on('doomChange', () => this.updateFactionPanel());
     this.gameState.on('unitPlaced', () => { this.mapRenderer.updateAllRegions(); this.updateFactionPanel(); });
@@ -29,6 +31,9 @@ export class UIController {
     if (rulebookBtn) {
       rulebookBtn.addEventListener('click', () => this.showRulebookModal());
     }
+    
+    // Auto-start phase loops
+    setTimeout(() => this.checkPhaseLoops(), 100);
   }
 
   // ========== HEADER ==========
@@ -196,6 +201,272 @@ export class UIController {
   }
 
   // ========== PROMPT METHODS ==========
+  
+  async checkPhaseLoops() {
+    if (this._phaseLoopRunning) return;
+    this._phaseLoopRunning = true;
+    
+    try {
+      const state = this.gameState.state;
+      const pi = state.currentPlayerIndex;
+      const player = this.gameState.getCurrentPlayer();
+      
+      if (state.phase === 'DETERMINE_FIRST_PLAYER') {
+        const p0 = this.gameState.getPlayer(0);
+        const p1 = this.gameState.getPlayer(1);
+        const p2 = this.gameState.getPlayer(2);
+        const p3 = this.gameState.getPlayer(3);
+        const players = [p0, p1, p2, p3].filter(Boolean);
+        const maxPower = Math.max(...players.map(p => p.power));
+        const candidates = players.filter(p => p.power === maxPower).map(p => p.id);
+        
+        let firstPlayer = candidates[0];
+        if (candidates.length > 1) {
+          firstPlayer = await this.promptChoosePlayer(candidates, `Choose First Player (tied at ${maxPower} Power)`);
+        }
+        applyAction(this.gameState, { type: 'SELECT_FIRST_PLAYER', playerIndex: pi, payload: { targetPlayerIndex: firstPlayer } });
+        
+        const direction = await this.promptChooseDirection();
+        applyAction(this.gameState, { type: 'CHOOSE_DIRECTION', playerIndex: firstPlayer, payload: { direction } });
+        
+      } else if (state.phase === 'DOOM') {
+        if (this.gameState.canRitual(pi)) {
+          const doRitual = await this.promptConfirmation(`${FACTIONS[player.factionId].name}: Perform Ritual of Annihilation? (Cost: ${this.gameState.getRitualCost()} Power)`);
+          if (doRitual) {
+            applyAction(this.gameState, { type: 'PERFORM_RITUAL', playerIndex: pi });
+          } else {
+            applyAction(this.gameState, { type: 'SKIP_RITUAL', playerIndex: pi });
+          }
+        } else {
+          applyAction(this.gameState, { type: 'SKIP_RITUAL', playerIndex: pi });
+        }
+        
+      } else if (state.phase === 'ACTION') {
+        if (state.combat) {
+           await this.handleCombatFlow();
+        } else if (player && !player.hasPassed) {
+          const availableActions = this.gameState.getAvailableActions(pi);
+          const chosenAction = await this.promptActionSelection(pi, availableActions);
+          if (chosenAction) {
+            let actionObj = await this.buildAction(chosenAction, pi);
+            if (actionObj) {
+              applyAction(this.gameState, actionObj);
+            }
+          }
+        } else if (player && player.hasPassed) {
+           // Skip if passed
+           applyAction(this.gameState, { type: 'PASS', playerIndex: pi });
+        }
+      }
+    } finally {
+      this._phaseLoopRunning = false;
+      // Re-check in case phase changed synchronously
+      setTimeout(() => this.checkPhaseLoops(), 100);
+    }
+  }
+  
+  async handleCombatFlow() {
+    const combat = this.gameState.state.combat;
+    const pi = this.gameState.state.currentPlayerIndex;
+    
+    // We need a CombatEngine for logic
+    const combatEngine = new CombatEngine(this.gameState);
+    
+    if (combat.step === 'ASSIGN_KILLS') {
+       if (!combat.attackerKillsAssigned && combat.attacker === pi) {
+           const killCount = Math.min(combat.results.defenderKills, this.gameState.getUnitsInRegion(combat.region, pi).length);
+           const units = this.gameState.getUnitsInRegion(combat.region, pi);
+           const killed = await this.promptUnitSelection(units, `Attacker: select ${killCount} unit(s) to kill`, killCount);
+           if (killed) {
+              applyAction(this.gameState, { type: 'ASSIGN_KILLS', playerIndex: pi, payload: { unitIds: killed.map(u => u.id) } });
+           }
+       } else if (!combat.defenderKillsAssigned && combat.defender === pi) {
+           const killCount = Math.min(combat.results.attackerKills, this.gameState.getUnitsInRegion(combat.region, pi).length);
+           const units = this.gameState.getUnitsInRegion(combat.region, pi);
+           const killed = await this.promptUnitSelection(units, `Defender: select ${killCount} unit(s) to kill`, killCount);
+           if (killed) {
+              applyAction(this.gameState, { type: 'ASSIGN_KILLS', playerIndex: pi, payload: { unitIds: killed.map(u => u.id) } });
+           }
+       }
+    } else if (combat.step === 'ASSIGN_PAINS') {
+       if (!combat.attackerPainsAssigned && combat.attacker === pi) {
+           const retreatOpts = combatEngine.getPainRetreatOptions(pi, combat.region, combat.defender);
+           const retreats = [];
+           for (const opt of retreatOpts) {
+              if (opt.mustDie) continue; // Will be handled by engine
+              const dest = await this.promptRegionSelection(opt.validDestinations, `Select retreat destination for ${opt.unitType}`);
+              if (dest) retreats.push({ unitId: opt.unitId, toRegion: dest });
+           }
+           applyAction(this.gameState, { type: 'ASSIGN_PAINS', playerIndex: pi, payload: { retreats } });
+       } else if (!combat.defenderPainsAssigned && combat.defender === pi) {
+           const retreatOpts = combatEngine.getPainRetreatOptions(pi, combat.region, combat.attacker);
+           const retreats = [];
+           for (const opt of retreatOpts) {
+              if (opt.mustDie) continue; // Will be handled by engine
+              const dest = await this.promptRegionSelection(opt.validDestinations, `Select retreat destination for ${opt.unitType}`);
+              if (dest) retreats.push({ unitId: opt.unitId, toRegion: dest });
+           }
+           applyAction(this.gameState, { type: 'ASSIGN_PAINS', playerIndex: pi, payload: { retreats } });
+       }
+    }
+  }
+
+  async buildAction(actionId, pi) {
+    if (actionId === 'pass') return { type: 'PASS', playerIndex: pi };
+    
+    if (actionId === 'move') {
+      const allUnits = this.gameState.getAllPlayerUnitsOnMap(pi);
+      const regionsWithUnits = Object.keys(allUnits);
+      if (regionsWithUnits.length === 0) return null;
+
+      const fromRegion = await this.promptRegionSelection(regionsWithUnits, 'Select region to move FROM');
+      if (!fromRegion) return null;
+
+      const units = allUnits[fromRegion];
+      const selectedUnits = await this.promptUnitSelection(units, 'Select units to move', units.length);
+      if (!selectedUnits || selectedUnits.length === 0) return null;
+
+      const cost = selectedUnits.length * GAME_CONFIG.MOVE_COST_PER_UNIT;
+      if (this.gameState.getPlayer(pi).power < cost) {
+        this.showToast('Not enough Power!', null);
+        return null;
+      }
+
+      const adjacent = this.gameState.getAdjacentRegions(fromRegion);
+      const toRegion = await this.promptRegionSelection(adjacent, 'Select destination');
+      if (!toRegion) return null;
+
+      return { type: 'MOVE', playerIndex: pi, payload: { unitIds: selectedUnits.map(u => u.id), fromRegion, toRegion } };
+    }
+    
+    if (actionId === 'battle') {
+      const combatEngine = new CombatEngine(this.gameState);
+      const battleRegions = combatEngine.getBattleRegions(pi);
+      if (battleRegions.length === 0) return null;
+      
+      const region = await this.promptRegionSelection(battleRegions, 'Select region for Battle');
+      if (!region) return null;
+      
+      const enemies = this.gameState.state.players
+        .filter(p => p.id !== pi && this.gameState.getUnitsInRegion(region, p.id).length > 0)
+        .map(p => p.id);
+
+      let defenderId;
+      if (enemies.length === 1) defenderId = enemies[0];
+      else defenderId = await this.promptChoosePlayer(enemies, 'Choose defender');
+      if (defenderId === undefined || defenderId === null) return null;
+      
+      return { type: 'BATTLE', playerIndex: pi, payload: { defenderId, region } };
+    }
+    
+    if (actionId === 'buildGate' || actionId === 'build_gate') {
+      const playerUnits = this.gameState.getAllPlayerUnitsOnMap(pi);
+      const validRegions = Object.keys(playerUnits).filter(regionId => {
+        const hasCultist = playerUnits[regionId].some(u => u.unitType === 'cultist');
+        const gateless = !this.gameState.state.map[regionId]?.gate;
+        return hasCultist && gateless;
+      });
+
+      if (validRegions.length === 0) return null;
+      const region = await this.promptRegionSelection(validRegions, 'Select region to build Gate');
+      if (!region) return null;
+      return { type: 'BUILD_GATE', playerIndex: pi, payload: { region } };
+    }
+    
+    if (actionId === 'recruit') {
+      const playerUnits = this.gameState.getAllPlayerUnitsOnMap(pi);
+      const validRegions = Object.keys(playerUnits);
+      if (validRegions.length === 0) return null;
+
+      const region = await this.promptRegionSelection(validRegions, 'Select region to recruit Cultist');
+      if (!region) return null;
+      return { type: 'RECRUIT', playerIndex: pi, payload: { region } };
+    }
+    
+    if (actionId === 'summon') {
+      const validRegions = this.gameState.getControlledGates(pi);
+      if (validRegions.length === 0) return null;
+
+      const region = await this.promptRegionSelection(validRegions, 'Select Gate to summon at');
+      if (!region) return null;
+      
+      const player = this.gameState.getPlayer(pi);
+      const faction = FACTIONS[player.factionId];
+      const monsterChoices = [];
+
+      for (const [unitType, count] of Object.entries(player.pool)) {
+        if (unitType !== 'cultist' && unitType !== 'goo' && count > 0) {
+          const uDef = faction?.units?.[unitType];
+          if (uDef) {
+            monsterChoices.push({ id: unitType, unitType, name: uDef.name, cost: uDef.cost });
+          }
+        }
+      }
+
+      if (monsterChoices.length === 0) return null;
+      
+      const monsterSelection = await this.promptUnitSelection(monsterChoices, 'Select monster to summon', 1);
+      if (!monsterSelection || monsterSelection.length === 0) return null;
+      return { type: 'SUMMON', playerIndex: pi, payload: { region, unitType: monsterSelection[0].unitType, cost: monsterSelection[0].cost } };
+    }
+    
+    if (actionId === 'awaken') {
+      const validRegions = this.gameState.getControlledGates(pi);
+      if (validRegions.length === 0) return null;
+
+      const player = this.gameState.getPlayer(pi);
+      const faction = FACTIONS[player.factionId];
+      const gooDef = faction?.greatOldOne || faction?.greatOldOnes?.[Object.keys(faction?.greatOldOnes || {})[0]];
+      if (!gooDef) return null;
+
+      const region = await this.promptRegionSelection(validRegions, `Select Gate to awaken ${gooDef.name}`);
+      if (!region) return null;
+      
+      const cost = gooDef.awakenCost || 10;
+      return { type: 'AWAKEN', playerIndex: pi, payload: { region, unitType: gooDef.id, cost } };
+    }
+    
+    if (actionId === 'capture') {
+      const playerUnits = this.gameState.getAllPlayerUnitsOnMap(pi);
+      const validRegions = Object.keys(playerUnits).filter(regionId => {
+        const hasMonsterOrGoo = playerUnits[regionId].some(u => u.unitType !== 'cultist');
+        if (!hasMonsterOrGoo) return false;
+
+        return this.gameState.state.players.some(enemy => {
+          if (enemy.id === pi) return false;
+          const enemyUnits = this.gameState.getUnitsInRegion(regionId, enemy.id);
+          const hasEnemyCultist = enemyUnits.some(u => u.unitType === 'cultist');
+          const hasEnemyProtector = enemyUnits.some(u => u.unitType !== 'cultist');
+          return hasEnemyCultist && !hasEnemyProtector;
+        });
+      });
+
+      if (validRegions.length === 0) return null;
+      const region = await this.promptRegionSelection(validRegions, 'Select region to capture Cultist');
+      if (!region) return null;
+      
+      const enemyCandidates = this.gameState.state.players
+        .filter(enemy => {
+          if (enemy.id === pi) return false;
+          const enemyUnits = this.gameState.getUnitsInRegion(region, enemy.id);
+          return enemyUnits.some(u => u.unitType === 'cultist') && !enemyUnits.some(u => u.unitType !== 'cultist');
+        })
+        .map(e => e.id);
+
+      let targetPlayerIndex;
+      if (enemyCandidates.length === 1) targetPlayerIndex = enemyCandidates[0];
+      else targetPlayerIndex = await this.promptChoosePlayer(enemyCandidates, 'Choose enemy to capture from');
+      if (targetPlayerIndex === undefined || targetPlayerIndex === null) return null;
+      
+      const victimUnits = this.gameState.getUnitsInRegion(region, targetPlayerIndex);
+      const victimCultist = victimUnits.find(u => u.unitType === 'cultist');
+      if (!victimCultist) return null;
+
+      return { type: 'CAPTURE', playerIndex: pi, payload: { region, targetPlayerIndex, unitId: victimCultist.id } };
+    }
+
+    return null;
+  }
   
   async promptActionSelection(playerIndex, availableActions) {
     this.updateActionBar(playerIndex, availableActions);

@@ -10,10 +10,7 @@ import { WalletManager } from './solana/wallet.js';
 import { PlayerStore } from './solana/player-store.js';
 import { LobbyManager } from './solana/lobby.js';
 import * as ProfileAPI from './db/profile-api.js';
-import { runGatherPower } from './game/phases/gather-power.js';
-import { runFirstPlayer } from './game/phases/first-player.js';
-import { runActionPhase } from './game/phases/action-phase.js';
-import { runDoomPhase } from './game/phases/doom-phase.js';
+
 import { $ } from './utils/dom.js';
 
 class CthulhuWarsApp {
@@ -94,34 +91,23 @@ class CthulhuWarsApp {
   }
 
   async runGameLoop() {
-    let gameOver = false;
+    // With the new pure state machine, the UI doesn't block the engine.
+    // We just listen to phase changes to determine game over.
+    this.gameState.on('phaseChange', (phase) => {
+      if (phase === 'GAME_OVER') {
+        this.handleGameOver();
+      }
+    });
     
-    while (!gameOver) {
-      // Phase 1: Gather Power (skip on round 1)
-      if (this.gameState.state.round > 1) {
-        await runGatherPower(this.gameState, this.uiController);
-      }
-      
-      // Phase 2: First Player (skip on round 1 - first player is player 0)
-      if (this.gameState.state.round > 1) {
-        await runFirstPlayer(this.gameState, this.uiController);
-      } else {
-        this.gameState.setPhase('ACTION');
-        this.gameState.setCurrentPlayer(0);
-      }
-      
-      // Phase 3: Action Phase
-      await runActionPhase(this.gameState, this.uiController);
-      
-      // Phase 4: Doom Phase
-      gameOver = await runDoomPhase(this.gameState, this.uiController);
-      
-      if (!gameOver) {
-        this.gameState.advanceRound();
-      }
+    // Initial jump to Action Phase if round 1
+    if (this.gameState.state.round === 1) {
+      this.gameState.setPhase('ACTION');
+      this.gameState.setCurrentPlayer(0);
+      this.uiController.updateUI();
     }
-    
-    // Game Over
+  }
+
+  handleGameOver() {
     const results = this.gameState.getFinalScores();
     this.uiController.showEndScreen(results);
     
