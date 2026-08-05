@@ -96,11 +96,16 @@ export function applyAction(gameState, action, rng = Math.random) {
         attacker: playerIndex,
         defender: payload.defenderId,
         region: payload.region,
-        step: 'ROLL_DICE',
+        step: 'WAITING_FOR_REFEREE',
         results: null
       };
+      break;
+
+    case 'RECEIVE_ROLLS':
+      if (gameState.state.phase !== 'ACTION') throw new Error('Wrong phase');
+      if (!gameState.state.combat || gameState.state.combat.step !== 'WAITING_FOR_REFEREE') throw new Error('Not waiting for referee');
       
-      _resolveDiceRolls(gameState, rng);
+      _resolveDiceRolls(gameState, payload.attackerRolls, payload.defenderRolls);
       break;
 
     case 'ASSIGN_KILLS':
@@ -248,11 +253,11 @@ function _checkGateAbandonment(gameState, playerIndex, region) {
   }
 }
 
-function _resolveDiceRolls(gameState, rng) {
+function _resolveDiceRolls(gameState, attackerRolls, defenderRolls) {
   const { combat } = gameState.state;
   
   const combatEngine = new CombatEngine(gameState);
-  const battleResult = combatEngine.resolveBattle(combat.attacker, combat.defender, combat.region, rng);
+  const battleResult = combatEngine.resolveBattle(combat.attacker, combat.defender, combat.region, attackerRolls, defenderRolls);
   
   combat.results = {
     attackerKills: battleResult.attackerKills,

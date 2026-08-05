@@ -1,0 +1,119 @@
+{
+  "address": "Bu732QhW9cRJSN9TAuoaavABDoYUeDWgKRgkdntevHo8",
+  "metadata": {
+    "name": "cthulhu_referee",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "roll_dice",
+      "discriminator": [
+        27,
+        140,
+        230,
+        215,
+        37,
+        178,
+        226,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "roll_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  108,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "game_id"
+              },
+              {
+                "kind": "arg",
+                "path": "combat_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "game_id",
+          "type": "string"
+        },
+        {
+          "name": "combat_id",
+          "type": "string"
+        },
+        {
+          "name": "num_dice",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "RollAccount",
+      "discriminator": [
+        208,
+        114,
+        12,
+        249,
+        224,
+        107,
+        235,
+        117
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "RollAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "game_id",
+            "type": "string"
+          },
+          {
+            "name": "combat_id",
+            "type": "string"
+          },
+          {
+            "name": "num_dice",
+            "type": "u8"
+          },
+          {
+            "name": "roller",
+            "type": "pubkey"
+          },
+          {
+            "name": "results",
+            "type": "bytes"
+          }
+        ]
+      }
+    }
+  ]
+}

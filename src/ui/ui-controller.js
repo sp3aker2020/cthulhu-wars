@@ -2,6 +2,7 @@ import { $, $$, createElement, show, hide, addClass, removeClass } from '../util
 import { FACTIONS, MAP_REGIONS, UNIT_ICONS, PHASE_NAMES, GAME_CONFIG } from '../game/constants.js';
 import { applyAction } from '../game/engine.js';
 import { CombatEngine } from '../game/combat.js';
+import { RefereeClient } from '../solana/referee-client.js';
 
 export class UIController {
   constructor(gameState, mapRenderer) {
@@ -10,6 +11,8 @@ export class UIController {
     this._actionResolver = null;
     this._regionResolver = null;
     this._toastTimeout = null;
+    this.refereeClient = new RefereeClient();
+    this._refereeInitialized = false;
   }
 
   init() {
@@ -272,7 +275,47 @@ export class UIController {
     // We need a CombatEngine for logic
     const combatEngine = new CombatEngine(this.gameState);
     
-    if (combat.step === 'ASSIGN_KILLS') {
+    if (combat.step === 'WAITING_FOR_REFEREE') {
+      if (combat.attacker === pi) {
+         if (!this._refereeInitialized) {
+            this.showToast('Initializing On-Chain Referee...', null);
+            await this.refereeClient.initializeEphemeralWallet();
+            this._refereeInitialized = true;
+         }
+
+         this.showToast('Waiting for Solana On-Chain Referee...', null);
+         try {
+            const gameId = this.gameState.state.id || 'local-game';
+            const combatId = `${combat.region}-${Date.now()}`;
+            
+            const atkDice = combatEngine.calculateCombatDice(combat.attacker, combat.region);
+            const defDice = combatEngine.calculateCombatDice(combat.defender, combat.region);
+            
+            // We just ask the referee for all the dice needed (attacker + defender combined)
+            const totalDice = atkDice + defDice;
+            
+            const rollsBuffer = await this.refereeClient.rollDice(gameId, combatId, totalDice);
+            const allRolls = Array.from(rollsBuffer);
+            
+            const attackerRolls = allRolls.slice(0, atkDice);
+            const defenderRolls = allRolls.slice(atkDice);
+            
+            applyAction(this.gameState, { 
+              type: 'RECEIVE_ROLLS', 
+              playerIndex: pi, 
+              payload: { attackerRolls, defenderRolls } 
+            });
+         } catch (err) {
+            console.error('Referee failed, falling back to local rolls:', err);
+            // Fallback: pass empty to let engine generate locally if Solana fails
+            applyAction(this.gameState, { 
+              type: 'RECEIVE_ROLLS', 
+              playerIndex: pi, 
+              payload: { attackerRolls: null, defenderRolls: null } 
+            });
+         }
+      }
+    } else if (combat.step === 'ASSIGN_KILLS') {
        if (!combat.attackerKillsAssigned && combat.attacker === pi) {
            const killCount = Math.min(combat.results.defenderKills, this.gameState.getUnitsInRegion(combat.region, pi).length);
            const units = this.gameState.getUnitsInRegion(combat.region, pi);

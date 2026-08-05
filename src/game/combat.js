@@ -93,7 +93,7 @@ export class CombatEngine {
     return units.reduce((total, unit) => total + unit.combatValue, 0);
   }
 
-  resolveBattle(attackerIndex, defenderIndex, regionId, rng = Math.random) {
+  resolveBattle(attackerIndex, defenderIndex, regionId, externalAtkRolls = null, externalDefRolls = null, rng = Math.random) {
     const attacker = this.gameState.getPlayer(attackerIndex);
     const defender = this.gameState.getPlayer(defenderIndex);
     
@@ -110,8 +110,8 @@ export class CombatEngine {
     const atkDice = this.calculateCombatDice(attackerIndex, regionId);
     const defDice = this.calculateCombatDice(defenderIndex, regionId);
 
-    const atkRolls = rollDice(atkDice, rng);
-    const defRolls = rollDice(defDice, rng);
+    const atkRolls = externalAtkRolls || rollDice(atkDice, rng);
+    const defRolls = externalDefRolls || rollDice(defDice, rng);
 
     const atkResults = interpretDice(atkRolls);
     const defResults = interpretDice(defRolls);

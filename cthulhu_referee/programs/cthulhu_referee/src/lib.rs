@@ -26,13 +26,16 @@ pub mod cthulhu_referee {
         // Generate pseudo-random rolls
         let mut results = Vec::with_capacity(num_dice as usize);
         for i in 0..num_dice {
-            // A simple hash combination for pseudo-randomness.
-            let seed_string = format!("{}-{}-{}-{}", slot, unix_timestamp, ctx.accounts.user.key(), i);
-            let hash = anchor_lang::solana_program::hash::hash(seed_string.as_bytes());
+            // A simple LCG for pseudo-randomness (sufficient for prototype)
+            let seed = (slot as u64)
+                .wrapping_add(unix_timestamp as u64)
+                .wrapping_add(i as u64)
+                .wrapping_mul(1103515245)
+                .wrapping_add(12345);
             
             // Dice are 1 to 6
-            let roll = (hash.to_bytes()[0] % 6) + 1;
-            results.push(roll);
+            let roll = ((seed >> 16) % 6) + 1;
+            results.push(roll as u8);
         }
 
         roll_account.results = results;
