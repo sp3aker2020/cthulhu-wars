@@ -1,6 +1,8 @@
 import { $, createElement, show, hide, addClass, removeClass } from '../utils/dom.js';
 import { FACTIONS } from '../game/constants.js';
 import { ProfilePage } from './profile-page.js';
+import * as ProfileAPI from '../db/profile-api.js';
+import { executeWagerTransfer } from '../solana/token-api.js';
 
 export class SetupScreen {
   constructor(walletManager, playerStore, lobbyManager) {
@@ -292,12 +294,53 @@ export class SetupScreen {
       class: 'btn start-btn',
       style: `margin-top:20px;width:100%;font-size:1.2rem;padding:16px;${(!canStart || !hasFunds) ? 'opacity:0.3;cursor:not-allowed' : ''}`,
       disabled: !canStart || !hasFunds,
-      click: () => {
-        if (canStart && hasFunds && this._startResolver) {
-          hide($('#setup-screen'));
-          this._startResolver(this.lobby.getGameConfig());
-          this._startResolver = null;
+      click: async () => {
+        if (!canStart || !hasFunds || !this._startResolver) return;
+
+        const fee = this.lobby._entryFee;
+        const pubkey = this.wallet.getPublicKey();
+        const isRealWallet = pubkey && !pubkey.startsWith('DEV_') && !pubkey.startsWith('SOL_');
+
+        // If there's an entry fee and user is connected with a real Solana wallet
+        if (fee > 0 && isRealWallet && this.wallet._provider) {
+          try {
+            startBtn.disabled = true;
+            startBtn.textContent = '⏳ Fetching Escrow Vault Address...';
+
+            const vaultAddr = await ProfileAPI.getVaultAddress();
+            if (!vaultAddr) {
+              alert('Unable to retrieve escrow vault address from server. Please try again.');
+              startBtn.disabled = false;
+              startBtn.textContent = '⚔️ START GAME ⚔️';
+              return;
+            }
+
+            startBtn.textContent = `👻 Approve Wager Transfer of ${fee} $CTHULHU in Phantom...`;
+            const txSig = await executeWagerTransfer(this.wallet._provider, pubkey, vaultAddr, fee);
+
+            startBtn.textContent = '🔍 Verifying Deposit On-Chain...';
+            const verification = await ProfileAPI.verifyWagerDeposit(txSig, pubkey, fee);
+
+            if (!verification || !verification.success) {
+              alert(`Wager deposit verification failed: ${verification?.message || 'Transaction could not be confirmed on-chain'}`);
+              startBtn.disabled = false;
+              startBtn.textContent = '⚔️ START GAME ⚔️';
+              return;
+            }
+
+            console.log('✓ Wager deposit successfully verified on-chain!');
+          } catch (err) {
+            console.error('Wager deposit error:', err);
+            alert(`Wager transaction cancelled or failed: ${err.message || err}`);
+            startBtn.disabled = false;
+            startBtn.textContent = '⚔️ START GAME ⚔️';
+            return;
+          }
         }
+
+        hide($('#setup-screen'));
+        this._startResolver(this.lobby.getGameConfig());
+        this._startResolver = null;
       }
     }, [!hasFunds ? '⚠️ Insufficient Funds' : '⚔️ START GAME ⚔️']);
     

@@ -170,6 +170,16 @@ class CthulhuWarsApp {
       const wPlayer = this.gameState.getPlayer(winner.playerIndex);
       if (wPlayer.walletAddress) {
         this.playerStore.addBalance(wPlayer.walletAddress, prizePot);
+        // On-chain vault payout
+        if (!wPlayer.walletAddress.startsWith('DEV_') && !wPlayer.walletAddress.startsWith('SOL_')) {
+          ProfileAPI.executeWagerPayout(wPlayer.walletAddress, prizePot).then(res => {
+            if (res && res.success) {
+              console.log(`✓ On-chain prize pot payout of ${prizePot} $CTHULHU sent to ${wPlayer.walletAddress}`);
+            } else {
+              console.warn('Vault payout warning:', res?.error || 'Failed to send vault payout');
+            }
+          }).catch(err => console.error('Vault payout error:', err));
+        }
       }
     }
     

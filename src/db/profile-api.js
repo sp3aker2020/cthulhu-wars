@@ -89,3 +89,31 @@ export async function getMatchHistory(walletAddress, limit = 20) {
 export async function getLeaderboard(limit = 25) {
   return apiFetch(`/api/leaderboard?limit=${limit}`);
 }
+
+/**
+ * Gets the server's public key for escrow vault deposits.
+ */
+export async function getVaultAddress() {
+  const data = await apiFetch('/api/vault-address');
+  return data?.vaultPublicKey || null;
+}
+
+/**
+ * Verifies a deposit tx on-chain.
+ */
+export async function verifyWagerDeposit(txSignature, walletAddress, amount) {
+  return apiFetch('/api/wager/verify-deposit', {
+    method: 'POST',
+    body: JSON.stringify({ txSignature, walletAddress, amount })
+  });
+}
+
+/**
+ * Requests prize payout from vault to winner.
+ */
+export async function executeWagerPayout(winnerAddress, prizePot) {
+  return apiFetch('/api/wager/payout', {
+    method: 'POST',
+    body: JSON.stringify({ winnerAddress, prizePot })
+  });
+}

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { getProfiles, getMatches, closeDB } from './db.js';
+import { getVaultPublicKey, verifyDeposit, sendPrizeToWinner } from './vault.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -325,6 +326,53 @@ app.get('/api/token-balance/:walletAddress', async (req, res) => {
   } catch (err) {
     console.error('GET /api/token-balance error:', err);
     res.status(500).json({ error: 'Failed to fetch token balance' });
+  }
+});
+
+// ============================================================
+// GET /api/vault-address
+// Returns the public key of the server-managed escrow vault.
+// ============================================================
+app.get('/api/vault-address', (_req, res) => {
+  const vaultPubkey = getVaultPublicKey();
+  res.json({ vaultPublicKey: vaultPubkey });
+});
+
+// ============================================================
+// POST /api/wager/verify-deposit
+// Verifies a player's token transfer tx on-chain.
+// ============================================================
+app.post('/api/wager/verify-deposit', async (req, res) => {
+  try {
+    const { txSignature, walletAddress, amount } = req.body;
+    if (!txSignature || !walletAddress || !amount) {
+      return res.status(400).json({ error: 'txSignature, walletAddress, and amount are required' });
+    }
+
+    const result = await verifyDeposit(txSignature, amount, walletAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('POST /api/wager/verify-deposit error:', err);
+    res.status(500).json({ success: false, error: 'Failed to verify deposit' });
+  }
+});
+
+// ============================================================
+// POST /api/wager/payout
+// Transports winner's prize pot from vault.
+// ============================================================
+app.post('/api/wager/payout', async (req, res) => {
+  try {
+    const { winnerAddress, prizePot } = req.body;
+    if (!winnerAddress || prizePot === undefined) {
+      return res.status(400).json({ error: 'winnerAddress and prizePot are required' });
+    }
+
+    const result = await sendPrizeToWinner(winnerAddress, prizePot);
+    res.json(result);
+  } catch (err) {
+    console.error('POST /api/wager/payout error:', err);
+    res.status(500).json({ success: false, error: 'Failed to execute payout' });
   }
 });
 

@@ -102,3 +102,79 @@ export async function getOnChainTokenBalance(walletAddress) {
   console.warn('[TokenAPI] All methods failed — returning null');
   return null;
 }
+
+/**
+ * Builds and sends an SPL Token transfer transaction from the user's wallet to the vault.
+ * @param {object} provider - Solana wallet provider (Phantom, Solflare, etc.)
+ * @param {string} userWalletAddress - Sender's public key string
+ * @param {string} vaultAddress - Receiver's public key string
+ * @param {number} amount - Amount in $CTHULHU UI units
+ * @returns {Promise<string>} Transaction signature
+ */
+export async function executeWagerTransfer(provider, userWalletAddress, vaultAddress, amount) {
+  if (!provider || !provider.signAndSendTransaction) {
+    throw new Error('Wallet provider does not support signing transactions');
+  }
+
+  const { Connection, PublicKey, Transaction } = await import('@solana/web3.js');
+  const { 
+    getAssociatedTokenAddress, 
+    createAssociatedTokenAccountInstruction, 
+    createTransferInstruction, 
+    TOKEN_2022_PROGRAM_ID, 
+    TOKEN_PROGRAM_ID 
+  } = await import('@solana/spl-token');
+
+  const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+  const mintPubkey = new PublicKey(CTHULHU_TOKEN_MINT);
+  const userPubkey = new PublicKey(userWalletAddress);
+  const vaultPubkey = new PublicKey(vaultAddress);
+
+  // Pump.fun tokens use Token-2022
+  let programId = TOKEN_2022_PROGRAM_ID;
+
+  // Derive Associated Token Addresses
+  const userAta = await getAssociatedTokenAddress(mintPubkey, userPubkey, false, programId);
+  const vaultAta = await getAssociatedTokenAddress(mintPubkey, vaultPubkey, false, programId);
+
+  const tx = new Transaction();
+
+  // Check if vault ATA exists on-chain; if not, add instruction to create it
+  const vaultAtaInfo = await connection.getAccountInfo(vaultAta);
+  if (!vaultAtaInfo) {
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        userPubkey,
+        vaultAta,
+        vaultPubkey,
+        mintPubkey,
+        programId
+      )
+    );
+  }
+
+  // Amount with 6 decimals for $CTHULHU
+  const rawAmount = BigInt(Math.floor(amount * 1e6));
+
+  tx.add(
+    createTransferInstruction(
+      userAta,
+      vaultAta,
+      userPubkey,
+      rawAmount,
+      [],
+      programId
+    )
+  );
+
+  const { blockhash } = await connection.getLatestBlockhash('confirmed');
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = userPubkey;
+
+  console.log(`[TokenAPI] Requesting signature to transfer ${amount} $CTHULHU to vault (${vaultAddress})...`);
+  const response = await provider.signAndSendTransaction(tx);
+  const signature = response.signature || response;
+  
+  console.log(`[TokenAPI] Transaction sent! Signature: ${signature}`);
+  return typeof signature === 'string' ? signature : signature.toString('hex');
+}
