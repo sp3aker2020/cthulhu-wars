@@ -41,8 +41,15 @@ export class WalletManager extends EventEmitter {
    * @returns {Array<{id: string, name: string, icon: string, detected: boolean, type: string}>}
    */
   getAvailableWallets() {
+    const hasPhantom = typeof window !== 'undefined' && !!(window.phantom?.solana || window.solana);
+    const hasSolflare = typeof window !== 'undefined' && !!window.solflare;
+    const hasBackpack = typeof window !== 'undefined' && !!window.backpack;
+
     return [
-      { id: 'privy_twitter', name: 'Sign In with Privy', icon: '𝕏', detected: true, type: 'social' }
+      { id: 'privy_twitter', name: 'Sign In with Privy (𝕏)', icon: '𝕏', detected: true, type: 'social' },
+      { id: 'phantom', name: 'Phantom Wallet', icon: '👻', detected: hasPhantom, type: 'extension' },
+      { id: 'solflare', name: 'Solflare Wallet', icon: '🔥', detected: hasSolflare, type: 'extension' },
+      { id: 'backpack', name: 'Backpack Wallet', icon: '🎒', detected: hasBackpack, type: 'extension' }
     ];
   }
 

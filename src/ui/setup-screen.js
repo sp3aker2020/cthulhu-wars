@@ -7,7 +7,7 @@ export class SetupScreen {
     this.wallet = walletManager;
     this.store = playerStore;
     this.lobby = lobbyManager;
-    this.profilePage = new ProfilePage(walletManager);
+    this.profilePage = new ProfilePage(walletManager, playerStore);
     this._startResolver = null;
     this._currentStep = 'wallet';  // 'wallet' | 'lobby'
   }
@@ -93,11 +93,16 @@ export class SetupScreen {
     const wallets = this.wallet.getAvailableWallets();
     for (const w of wallets) {
       const isPrivy = w.id === 'privy_twitter';
+      const isPhantom = w.id === 'phantom';
+      const btnStyle = isPrivy 
+        ? 'background:linear-gradient(135deg, #6366f1, #4f46e5);color:white;font-weight:bold;margin-bottom:12px;box-shadow:0 0 24px rgba(99,102,241,0.5);display:flex;align-items:center;padding:12px 16px;'
+        : isPhantom
+        ? 'background:linear-gradient(135deg, #ab9ff2, #7a6be6);color:white;font-weight:bold;margin-bottom:12px;box-shadow:0 0 20px rgba(171,159,242,0.4);display:flex;align-items:center;padding:12px 16px;'
+        : 'margin-bottom:8px;display:flex;align-items:center;padding:10px 16px;';
+
       const btn = createElement('button', {
         class: `wallet-btn ${w.id}`,
-        style: isPrivy 
-          ? 'background:linear-gradient(135deg, #6366f1, #4f46e5);color:white;font-weight:bold;margin-bottom:16px;box-shadow:0 0 24px rgba(99,102,241,0.5)'
-          : '',
+        style: btnStyle,
         click: async () => {
           try {
             await this.wallet.connect(w.id);
@@ -107,9 +112,9 @@ export class SetupScreen {
           }
         }
       }, [
-        createElement('span', { class: 'wallet-icon' }, [w.icon]),
-        createElement('span', { class: 'wallet-name', style: isPrivy ? 'flex-grow:1;text-align:center' : '' }, [w.name]),
-        ...(!isPrivy ? [createElement('span', { class: 'wallet-status' }, [w.detected ? 'Detected' : 'Not installed'])] : []),
+        createElement('span', { class: 'wallet-icon', style: 'font-size:1.4rem;margin-right:10px;' }, [w.icon]),
+        createElement('span', { class: 'wallet-name', style: 'flex-grow:1;text-align:left;font-size:1rem;' }, [w.name]),
+        ...(!isPrivy ? [createElement('span', { class: 'wallet-status', style: 'font-size:0.8rem;opacity:0.8;' }, [w.detected ? 'Detected' : 'Not installed'])] : []),
       ]);
       section.appendChild(btn);
     }

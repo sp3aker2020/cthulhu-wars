@@ -20,8 +20,9 @@ const FACTION_NAMES = {
  * Full-screen profile page overlay.
  */
 export class ProfilePage {
-  constructor(walletManager) {
+  constructor(walletManager, playerStore) {
     this.wallet = walletManager;
+    this.store = playerStore;
     this._profile = null;
     this._history = [];
     this._leaderboard = [];
@@ -143,8 +144,42 @@ export class ProfilePage {
     const walletEl = createElement('div', { class: 'profile-wallet-addr mono' }, [walletAddr]);
     nameSection.appendChild(walletEl);
 
+    // Link Phantom button if currently using Privy synthetic address or want to switch
+    const isPrivyUser = walletAddr.startsWith('SOL_');
+    const linkPhantomBtn = createElement('button', {
+      class: 'btn',
+      style: `margin-top:8px;padding:4px 12px;font-size:0.8rem;background:linear-gradient(135deg,#ab9ff2,#7a6be6);color:white;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;`,
+      click: async () => {
+        try {
+          const provider = window.phantom?.solana || window.solana;
+          if (!provider) {
+            alert('Phantom wallet extension not detected. Please install Phantom from phantom.app!');
+            return;
+          }
+          linkPhantomBtn.textContent = 'Connecting...';
+          const resp = await provider.connect();
+          const phantomKey = resp.publicKey.toString();
+          
+          // Link balance and stats from Privy user to Phantom address
+          if (this.store) {
+            const currentProfile = this.store.getProfile(walletAddr);
+            const phantomProfile = this.store.getProfile(phantomKey);
+            phantomProfile.balance = (phantomProfile.balance || 0) + (currentProfile.balance || 0);
+            this.store.saveProfiles();
+          }
+
+          await this.wallet.connect('phantom');
+          this.show(); // Refresh profile screen
+        } catch (err) {
+          console.error('Phantom connection error:', err);
+          linkPhantomBtn.textContent = '👻 Link Phantom Wallet';
+        }
+      }
+    }, ['👻 ' + (isPrivyUser ? 'Link Phantom Wallet' : 'Switch to Phantom')]);
+    nameSection.appendChild(linkPhantomBtn);
+
     // Member since
-    const sinceEl = createElement('div', { class: 'profile-since' }, [`Member since ${memberSince}`]);
+    const sinceEl = createElement('div', { class: 'profile-since', style: 'margin-top:4px' }, [`Member since ${memberSince}`]);
     nameSection.appendChild(sinceEl);
 
     identity.appendChild(nameSection);
