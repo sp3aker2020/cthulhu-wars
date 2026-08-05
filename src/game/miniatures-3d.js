@@ -83,21 +83,11 @@ export class MiniatureFactory {
     pLight.position.set(0, baseHeight + 0.6, 0.6);
     group.add(pLight);
 
-    // 2. Standing Deluxe 3D Acrylic Standee Frame Plaque
+    // 2. Standing Clean Miniature Artwork Standee (Borderless Cutout)
     const plaqueGroup = new THREE.Group();
     plaqueGroup.position.y = baseHeight + billHeight / 2;
 
-    // Metallic Outer Frame Bezel
-    const frameGeo = new THREE.BoxGeometry(billWidth + 0.16, billHeight + 0.16, 0.08);
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x1f1f24,
-      roughness: 0.3,
-      metalness: 0.85
-    });
-    const frameMesh = new THREE.Mesh(frameGeo, frameMat);
-    plaqueGroup.add(frameMesh);
-
-    // Front Painted Miniature Artwork Face
+    // Front & Back Clean Miniature Artwork Cutout Face
     const imgUrl = UNIT_IMAGES[unitType] || UNIT_IMAGES.cultist;
     const texture = getTexture(imgUrl);
 
@@ -110,14 +100,7 @@ export class MiniatureFactory {
 
     const faceGeo = new THREE.PlaneGeometry(billWidth, billHeight);
     const faceMesh = new THREE.Mesh(faceGeo, faceMat);
-    faceMesh.position.z = 0.05;
     plaqueGroup.add(faceMesh);
-
-    // Back Painted Miniature Artwork Face (Duplicate for 360° visibility)
-    const backMesh = new THREE.Mesh(faceGeo, faceMat);
-    backMesh.rotation.y = Math.PI;
-    backMesh.position.z = -0.05;
-    plaqueGroup.add(backMesh);
 
     group.add(plaqueGroup);
     group.userData = { isMiniature: true, billboard: plaqueGroup };
