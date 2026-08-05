@@ -96,15 +96,26 @@ class CthulhuWarsApp {
       const profile = this.playerStore.getProfile(pubkey);
       const balance = profile.balance || 0;
       
-      headerWallet.innerHTML = `
-        <div class="wallet-badge" style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #00e676;">
-          <div class="token-balance" style="color: #00e676; font-weight: bold; display: flex; align-items: center; gap: 4px;">
-            <span style="font-size: 1.1em;">🪙</span> ${balance}
+      const renderHeaderBalance = (bal) => {
+        headerWallet.innerHTML = `
+          <div class="wallet-badge" style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #00e676;">
+            <div class="token-balance" style="color: #00e676; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 1.1em;">🪙</span> ${bal.toLocaleString()} $CTHULHU
+            </div>
+            <div style="width: 1px; height: 14px; background: rgba(255,255,255,0.2);"></div>
+            <div><span class="wallet-dot"></span>${this.wallet.getShortAddress()}</div>
           </div>
-          <div style="width: 1px; height: 14px; background: rgba(255,255,255,0.2);"></div>
-          <div><span class="wallet-dot"></span>${this.wallet.getShortAddress()}</div>
-        </div>
-      `;
+        `;
+      };
+
+      renderHeaderBalance(balance);
+      
+      // Async sync real on-chain $CTHULHU balance
+      this.playerStore.syncOnChainBalance(pubkey).then(onChainBal => {
+        if (typeof onChainBal === 'number') {
+          renderHeaderBalance(onChainBal);
+        }
+      });
     }
     
     // Start game loop

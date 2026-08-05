@@ -23,10 +23,15 @@ export class SetupScreen {
     this.render();
     
     // Listen for wallet events
-    this.wallet.on('connected', () => {
+    this.wallet.on('connected', async () => {
       this._currentStep = 'lobby';
       this._autoPopulateLobby();
       this.render();
+      const pubkey = this.wallet.getPublicKey();
+      if (pubkey) {
+        await this.store.syncOnChainBalance(pubkey);
+        this.render();
+      }
     });
     this.wallet.on('disconnected', () => {
       this._currentStep = 'wallet';
@@ -138,7 +143,13 @@ export class SetupScreen {
   }
 
   _renderWalletBadge(screen) {
-    const badge = createElement('div', { class: 'wallet-badge glass' }, [
+    const pubkey = this.wallet.getPublicKey();
+    const profile = pubkey ? this.store.getProfile(pubkey) : null;
+    const bal = profile ? (profile.balance || 0) : 0;
+
+    const badge = createElement('div', { class: 'wallet-badge glass', style: 'display:flex;align-items:center;gap:12px;' }, [
+      createElement('span', { class: 'token-balance', style: 'color:#00e676;font-weight:bold;' }, [`🪙 ${bal.toLocaleString()} $CTHULHU`]),
+      createElement('span', { style: 'opacity:0.3;' }, ['|']),
       createElement('span', { class: 'wallet-dot' }),
       createElement('span', {}, [this.wallet.getShortAddress() || 'Connected']),
       createElement('span', { class: 'disconnect-btn', click: () => this.wallet.disconnect() }, ['Disconnect']),

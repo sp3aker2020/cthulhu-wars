@@ -1,3 +1,5 @@
+import { getOnChainTokenBalance } from './token-api.js';
+
 /**
  * Local storage backed player store.
  */
@@ -25,6 +27,23 @@ export class PlayerStore {
    */
   _save() {
     localStorage.setItem('cw_players', JSON.stringify(this._profiles));
+  }
+
+  /**
+   * Syncs real on-chain $CTHULHU token balance for a wallet address.
+   * @param {string} addr 
+   * @returns {Promise<number>}
+   */
+  async syncOnChainBalance(addr) {
+    if (!addr) return 0;
+    const profile = this.getProfile(addr);
+    const onChainBal = await getOnChainTokenBalance(addr);
+    if (typeof onChainBal === 'number') {
+      profile.balance = onChainBal;
+      this._save();
+      return onChainBal;
+    }
+    return profile.balance || 0;
   }
 
   /**
